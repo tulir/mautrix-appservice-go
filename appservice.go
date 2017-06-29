@@ -38,13 +38,26 @@ type Config struct {
 	Registration *Registration     `yaml:"-"`
 	Log          *maulogger.Logger `yaml:"-"`
 
-	lastProcessedTransaction string     `yaml:"-"`
-	Events                   chan Event `yaml:"-"`
+	lastProcessedTransaction string                     `yaml:"-"`
+	Events                   chan Event                 `yaml:"-"`
+	EventListeners           map[string][]EventListener `yaml:"-"`
+}
+
+// AddEventListener adds an event listener to this appservice.
+func (as *Config) AddEventListener(event string, listener EventListener) {
+	arr := as.EventListeners[event]
+	if arr == nil {
+		arr = []EventListener{listener}
+	} else {
+		arr = append(arr, listener)
+	}
+	as.EventListeners[event] = arr
 }
 
 // Init initializes the logger and loads the registration of this appservice.
 func (as *Config) Init() bool {
 	as.Events = make(chan Event, EventChannelSize)
+	as.EventListeners = make(map[string][]EventListener)
 
 	as.Log = maulogger.Create()
 	as.LogConfig.Configure(as.Log)

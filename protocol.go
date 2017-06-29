@@ -26,6 +26,9 @@ type EventList struct {
 	Events []Event `json:"events"`
 }
 
+// EventListener is a function that receives events.
+type EventListener func(event Event)
+
 // Event contains the base fields for events
 type Event struct {
 	ID               string                 `json:"event_id"`

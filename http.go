@@ -95,7 +95,12 @@ func (as *Config) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	for _, event := range eventList.Events {
 		as.Log.Debugln("Received event", event.ID)
 		as.Events <- event
-		// TODO emit events
+		listeners, ok := as.EventListeners[event.Type]
+		if ok {
+			for _, listener := range listeners {
+				listener(event)
+			}
+		}
 	}
 	as.lastProcessedTransaction = txnID
 	WriteBlankOK(w)
