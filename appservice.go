@@ -26,14 +26,19 @@ import (
 // EventChannelSize is the size for the Events channel in Appservice instances.
 var EventChannelSize = 64
 
+type QueryHandler interface {
+	QueryAlias(alias string) bool
+	QueryUser(userID string) bool
+}
+
 // Config is the main config for all appservices.
 // It also serves as the appservice instance struct.
 type Config struct {
-	HomeserverDomain string    `yaml:"homeserver_domain"`
-	HomeserverURL    string    `yaml:"homeserver_url"`
-	RegistrationPath string    `yaml:"registration"`
-	Port             uint8     `yaml:"listen_port"`
-	LogConfig        LogConfig `yaml:"logging"`
+	HomeserverDomain string     `yaml:"homeserver_domain"`
+	HomeserverURL    string     `yaml:"homeserver_url"`
+	RegistrationPath string     `yaml:"registration"`
+	Host             HostConfig `yaml:"host"`
+	LogConfig        LogConfig  `yaml:"logging"`
 
 	Registration *Registration     `yaml:"-"`
 	Log          *maulogger.Logger `yaml:"-"`
@@ -41,6 +46,20 @@ type Config struct {
 	lastProcessedTransaction string                     `yaml:"-"`
 	Events                   chan Event                 `yaml:"-"`
 	EventListeners           map[string][]EventListener `yaml:"-"`
+	QueryHandler             QueryHandler               `yaml:"-"`
+}
+
+// HostConfig contains info about how to host the appservice.
+type HostConfig struct {
+	Hostname string `yaml:"hostname"`
+	Port     uint8  `yaml:"port"`
+	TLSKey   string `yaml:"tls_key"`
+	TLSCert  string `yaml:"tls_cert"`
+}
+
+// Address gets the whole address of the Appservice.
+func (hc *HostConfig) Address() string {
+	return fmt.Sprintf("%s:%d", hc.Hostname, hc.Port)
 }
 
 // AddEventListener adds an event listener to this appservice.
@@ -55,9 +74,10 @@ func (as *Config) AddEventListener(event string, listener EventListener) {
 }
 
 // Init initializes the logger and loads the registration of this appservice.
-func (as *Config) Init() bool {
+func (as *Config) Init(queryHandler QueryHandler) bool {
 	as.Events = make(chan Event, EventChannelSize)
 	as.EventListeners = make(map[string][]EventListener)
+	as.QueryHandler = queryHandler
 
 	as.Log = maulogger.Create()
 	as.LogConfig.Configure(as.Log)

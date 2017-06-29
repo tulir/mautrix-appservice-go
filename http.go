@@ -28,7 +28,18 @@ import (
 func (as *Config) Listen() {
 	r := mux.NewRouter()
 	r.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
-	http.Handle("/", r)
+	r.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
+	r.HandleFunc("/users/{userID}", as.GetUser).Methods(http.MethodGet)
+
+	var err error
+	if len(as.Host.TLSCert) == 0 || len(as.Host.TLSKey) == 0 {
+		err = http.ListenAndServe(as.Host.Address(), r)
+	} else {
+		err = http.ListenAndServeTLS(as.Host.Address(), as.Host.TLSCert, as.Host.TLSKey, r)
+	}
+	if err != nil {
+		as.Log.Fatalln("Error while listening:", err)
+	}
 }
 
 // CheckServerToken checks if the given request originated from the Matrix homeserver.
@@ -104,4 +115,42 @@ func (as *Config) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 	as.lastProcessedTransaction = txnID
 	WriteBlankOK(w)
+}
+
+// GetRoom handles a /rooms GET call from the homeserver.
+func (as *Config) GetRoom(w http.ResponseWriter, r *http.Request) {
+	if !as.CheckServerToken(w, r) {
+		return
+	}
+
+	vars := mux.Vars(r)
+	roomAlias := vars["roomAlias"]
+	ok := as.QueryHandler.QueryAlias(roomAlias)
+	if ok {
+		WriteBlankOK(w)
+	} else {
+		Error{
+			ErrorCode:  ErrUnknown,
+			HTTPStatus: http.StatusNotFound,
+		}.Write(w)
+	}
+}
+
+// GetUser handles a /users GET call from the homeserver.
+func (as *Config) GetUser(w http.ResponseWriter, r *http.Request) {
+	if !as.CheckServerToken(w, r) {
+		return
+	}
+
+	vars := mux.Vars(r)
+	userID := vars["userID"]
+	ok := as.QueryHandler.QueryUser(userID)
+	if ok {
+		WriteBlankOK(w)
+	} else {
+		Error{
+			ErrorCode:  ErrUnknown,
+			HTTPStatus: http.StatusNotFound,
+		}.Write(w)
+	}
 }
