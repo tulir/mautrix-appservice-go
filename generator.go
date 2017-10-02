@@ -82,12 +82,12 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	if reserveRooms || reserveUsers {
 		for {
 			namespace := readString(reader, "Enter namespace prefix", fmt.Sprintf("_%s_", name))
-			roomNamespaceRegex, err := regexp.Compile(fmt.Sprintf("#%s.+:%s", namespace, config.HomeserverDomain))
+			roomNamespaceRegex, err := regexp.Compile(fmt.Sprintf("#%s.*", namespace))
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			userNamespaceRegex, _ := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			userNamespaceRegex, _ := regexp.Compile(fmt.Sprintf("@%s.*", namespace))
 			if reserveRooms {
 				registration.Namespaces.RegisterRoomAliases(roomNamespaceRegex, true)
 			}
