@@ -18,7 +18,10 @@ package appservice
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+
+	"gopkg.in/yaml.v2"
 
 	"maunium.net/go/maulogger"
 )
@@ -26,6 +29,23 @@ import (
 // EventChannelSize is the size for the Events channel in Appservice instances.
 var EventChannelSize = 64
 
+// Create a blank appservice instance.
+func Create() *Config {
+	return &Config{
+		LogConfig: CreateLogConfig(),
+	}
+}
+
+// Load an appservice config from a file.
+func Load(path string) *Config {
+	data, _ := ioutil.ReadFile(path)
+
+	var config = &Config{}
+	yaml.Unmarshal(data, config)
+	return config
+}
+
+// QueryHandler handles room alias and user ID queries from the homeserver.
 type QueryHandler interface {
 	QueryAlias(alias string) bool
 	QueryUser(userID string) bool
@@ -52,14 +72,29 @@ type Config struct {
 // HostConfig contains info about how to host the appservice.
 type HostConfig struct {
 	Hostname string `yaml:"hostname"`
-	Port     uint8  `yaml:"port"`
-	TLSKey   string `yaml:"tls_key"`
-	TLSCert  string `yaml:"tls_cert"`
+	Port     uint16 `yaml:"port"`
+	TLSKey   string `yaml:"tls_key,omitempty"`
+	TLSCert  string `yaml:"tls_cert,omitempty"`
 }
 
 // Address gets the whole address of the Appservice.
 func (hc *HostConfig) Address() string {
 	return fmt.Sprintf("%s:%d", hc.Hostname, hc.Port)
+}
+
+// Save saves this config into a file at the given path.
+func (as *Config) Save(path string) error {
+	data, err := yaml.Marshal(as)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path, data, 0644)
+}
+
+// YAML returns the config in YAML format.
+func (as *Config) YAML() string {
+	data, _ := yaml.Marshal(as)
+	return string(data)
 }
 
 // AddEventListener adds an event listener to this appservice.
@@ -104,6 +139,18 @@ type LogConfig struct {
 	Debug           bool   `yaml:"print_debug"`
 }
 
+// CreateLogConfig creates a basic LogConfig.
+func CreateLogConfig() LogConfig {
+	return LogConfig{
+		Directory:       "./logs",
+		FileNameFormat:  "%[1]s-%02[2]d.log",
+		TimestampFormat: "Jan _2, 2006 15:04:05",
+		FileMode:        0600,
+		FileDateFormat:  "2006-01-02",
+		Debug:           false,
+	}
+}
+
 // GetFileFormat returns a mauLogger-compatible logger file format based on the data in the struct.
 func (lc LogConfig) GetFileFormat() maulogger.LoggerFileFormat {
 	path := lc.FileNameFormat
@@ -120,6 +167,7 @@ func (lc LogConfig) GetFileFormat() maulogger.LoggerFileFormat {
 func (lc LogConfig) Configure(log *maulogger.Logger) {
 	log.FileFormat = lc.GetFileFormat()
 	log.FileMode = os.FileMode(lc.FileMode)
+	log.FileTimeFormat = lc.FileDateFormat
 	log.TimeFormat = lc.TimestampFormat
 	if lc.Debug {
 		log.PrintLevel = maulogger.LevelDebug.Severity

@@ -61,11 +61,17 @@ func LoadRegistration(path string) (*Registration, error) {
 
 // Save saves this Registration into a file at the given path.
 func (reg *Registration) Save(path string) error {
-	data, err := yaml.Marshal(&reg)
+	data, err := yaml.Marshal(reg)
 	if err != nil {
 		return err
 	}
 	return ioutil.WriteFile(path, data, 0600)
+}
+
+// YAML returns the registration in YAML format.
+func (reg *Registration) YAML() string {
+	data, _ := yaml.Marshal(reg)
+	return string(data)
 }
 
 // Namespaces contains the three areas that appservices can reserve parts of.
