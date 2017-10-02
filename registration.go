@@ -39,6 +39,7 @@ type Registration struct {
 // CreateRegistration creates a Registration with random appservice and homeserver tokens.
 func CreateRegistration(name string) *Registration {
 	return &Registration{
+		ID:          name,
 		AppToken:    RandomString(64),
 		ServerToken: RandomString(64),
 	}
