@@ -23,6 +23,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/matrix-org/gomatrix"
 	"maunium.net/go/maulogger"
 )
 
@@ -62,6 +63,7 @@ type Config struct {
 
 	Registration *Registration     `yaml:"-"`
 	Log          *maulogger.Logger `yaml:"-"`
+	Bot          *gomatrix.Client  `yaml:"-"`
 
 	lastProcessedTransaction string       `yaml:"-"`
 	Events                   chan Event   `yaml:"-"`
@@ -106,6 +108,12 @@ func (as *Config) Init(queryHandler QueryHandler) bool {
 	as.Log.Debugln("Logger initialized successfully.")
 
 	var err error
+
+	as.Bot, err = gomatrix.NewClient(as.HomeserverURL, as.Registration.SenderLocalpart, as.Registration.AppToken)
+	if err != nil {
+		as.Log.Fatalln("Failed to create main bot client:", err)
+	}
+
 	as.Registration, err = LoadRegistration(as.RegistrationPath)
 	if err != nil {
 		as.Log.Fatalln("Failed to load registration:", err)

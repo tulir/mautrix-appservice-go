@@ -114,6 +114,7 @@ func (as *Config) PutTransaction(w http.ResponseWriter, r *http.Request) {
 // GetRoom handles a /rooms GET call from the homeserver.
 func (as *Config) GetRoom(w http.ResponseWriter, r *http.Request) {
 	if !as.CheckServerToken(w, r) {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
@@ -133,6 +134,7 @@ func (as *Config) GetRoom(w http.ResponseWriter, r *http.Request) {
 // GetUser handles a /users GET call from the homeserver.
 func (as *Config) GetUser(w http.ResponseWriter, r *http.Request) {
 	if !as.CheckServerToken(w, r) {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
