@@ -99,7 +99,7 @@ func (as *Config) YAML() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(data)
+	return string(data), nil
 }
 
 // Init initializes the logger and loads the registration of this appservice.
