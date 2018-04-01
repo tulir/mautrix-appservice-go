@@ -72,9 +72,9 @@ func (reg *Registration) Save(path string) error {
 func (reg *Registration) YAML() (string, error) {
 	data, err := yaml.Marshal(reg)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return string(data)
+	return string(data), nil
 }
 
 // Namespaces contains the three areas that appservices can reserve parts of.
