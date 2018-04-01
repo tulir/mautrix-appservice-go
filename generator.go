@@ -183,7 +183,7 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 		fmt.Println("Failed to read user Input:", err)
 		return
 	}
-	err := registration.Save(path)
+	err = registration.Save(path)
 	if err != nil {
 		fmt.Println("Failed to save registration:", err)
 		return
@@ -195,7 +195,12 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	boldCyan.Println("\n======= Config generated =======")
 	color.Yellow(config.YAML())
 
-	ok = strings.ToLower(readString(reader, "Does the config look OK [yes/no]?", "yes"))
+	okString, err := readString(reader, "Does the config look OK [yes/no]?", "yes")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", err)
+		return
+	}
+	ok = strings.ToLower(okString)
 	if ok != yesShort && ok != yes {
 		fmt.Println("Cancelling generation.")
 		return
