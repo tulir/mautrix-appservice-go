@@ -27,18 +27,21 @@ import (
 	"github.com/fatih/color"
 )
 
-func readString(reader *bufio.Reader, message, defaultValue string) string {
+func readString(reader *bufio.Reader, message, defaultValue string) (string, error) {
 	color.Green(message)
 	if len(defaultValue) > 0 {
 		fmt.Printf("[%s]", defaultValue)
 	}
 	fmt.Print("> ")
-	val, _ := reader.ReadString('\n')
+	val, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
 	val = strings.TrimSuffix(val, "\n")
 	if len(val) == 0 {
 		return defaultValue
 	}
-	return val
+	return val, nil
 }
 
 const (
@@ -53,41 +56,99 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	boldCyan.Println("Generating appservice config and registration.")
 	reader := bufio.NewReader(os.Stdin)
 
-	name := readString(reader, "Enter name for appservice", asName)
+	name, err := readString(reader, "Enter name for appservice", asName)
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 	registration := CreateRegistration(name)
 	config := Create()
 	registration.RateLimited = false
 
-	registration.SenderLocalpart = readString(reader, "Enter bot username", botName)
+	registration.SenderLocalpart, err = readString(reader, "Enter bot username", botName)
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 
-	asProtocol := readString(reader, "Enter appservice host protocol", "http")
+	asProtocol, err := readString(reader, "Enter appservice host protocol", "http")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 	if asProtocol == "https" {
-		wantSSL := strings.ToLower(readString(reader, "Do you want the appservice to handle SSL [yes/no]?", "yes"))
+		sslInput, err := readString(reader, "Do you want the appservice to handle SSL [yes/no]?", "yes")
+		if err != nil {
+			fmt.Println("Failed to read user Input:", readErr)
+			return
+		}
+		wantSSL := strings.ToLower(sslInput)
 		if wantSSL == yes {
-			config.Host.TLSCert = readString(reader, "Enter path to SSL certificate", "appservice.crt")
-			config.Host.TLSKey = readString(reader, "Enter path to SSL key", "appservice.key")
+			config.Host.TLSCert, err = readString(reader, "Enter path to SSL certificate", "appservice.crt")
+			if err != nil {
+				fmt.Println("Failed to read user Input:", readErr)
+				return
+			}
+			config.Host.TLSKey, err = readString(reader, "Enter path to SSL key", "appservice.key")
+			if err != nil {
+				fmt.Println("Failed to read user Input:", readErr)
+				return
+			}
 		}
 	}
-	asHostname := readString(reader, "Enter appservice hostname", "localhost")
-	asPort, _ := strconv.Atoi(readString(reader, "Enter appservice host port", "29313"))
+	asHostname, err := readString(reader, "Enter appservice hostname", "localhost")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
+	asInput, err := readString(reader, "Enter appservice host port", "29313")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
+	asPort, convErr := strconv.Atoi(asInput)
+	if convErr != nil {
+		fmt.Println("Failed to parse port:", err)
+		return
+	}
 	registration.URL = fmt.Sprintf("%s://%s:%d", asProtocol, asHostname, asPort)
 	config.Host.Hostname = asHostname
 	config.Host.Port = uint16(asPort)
 
-	config.HomeserverURL = readString(reader, "Enter homeserver address", "http://localhost:8008")
-	config.HomeserverDomain = readString(reader, "Enter homeserver domain", "example.com")
-	config.LogConfig.Directory = readString(reader, "Enter directory for logs", "./logs")
+	config.HomeserverURL, err = readString(reader, "Enter homeserver address", "http://localhost:8008")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
+	config.HomeserverDomain, err = readString(reader, "Enter homeserver domain", "example.com")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
+	config.LogConfig.Directory, err = readString(reader, "Enter directory for logs", "./logs")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 	os.MkdirAll(config.LogConfig.Directory, 0755)
 
 	if reserveRooms || reserveUsers {
 		for {
-			namespace := readString(reader, "Enter namespace prefix", fmt.Sprintf("_%s_", name))
+			namespace, err := readString(reader, "Enter namespace prefix", fmt.Sprintf("_%s_", name))
+			if err != nil {
+				fmt.Println("Failed to read user Input:", readErr)
+				return
+			}
 			roomNamespaceRegex, err := regexp.Compile(fmt.Sprintf("#%s.+:%s", namespace, config.HomeserverDomain))
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			userNamespaceRegex, _ := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			userNamespaceRegex, regexpErr := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			if regexpErr != nil {
+				fmt.Println("Failed to generate regexp for the userNamespace:", err)
+				return
+			}
 			if reserveRooms {
 				registration.Namespaces.RegisterRoomAliases(roomNamespaceRegex, true)
 			}
@@ -99,15 +160,29 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	}
 
 	boldCyan.Println("\n==== Registration generated ====")
-	color.Yellow(registration.YAML())
+	yamlString, yamlErr := registration.YAML()
+	if err != nil {
+		fmt.Println("Failed to return the registration Config:", yamlErr)
+		return
+	}
+	color.Yellow(yamlString)
 
-	ok := strings.ToLower(readString(reader, "Does the registration look OK [yes/no]?", "yes"))
+	okInput, readErr := readString(reader, "Does the registration look OK [yes/no]?", "yes")
+	if readErr != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
+	ok := strings.ToLower(okInput)
 	if ok != yesShort && ok != yes {
 		fmt.Println("Cancelling generation.")
 		return
 	}
 
-	path := readString(reader, "Where should the registration be saved?", "registration.yaml")
+	path, err := readString(reader, "Where should the registration be saved?", "registration.yaml")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 	err := registration.Save(path)
 	if err != nil {
 		fmt.Println("Failed to save registration:", err)
@@ -126,7 +201,11 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 		return
 	}
 
-	path = readString(reader, "Where should the config be saved?", "config.yaml")
+	path, err = readString(reader, "Where should the config be saved?", "config.yaml")
+	if err != nil {
+		fmt.Println("Failed to read user Input:", readErr)
+		return
+	}
 	err = config.Save(path)
 	if err != nil {
 		fmt.Println("Failed to save config:", err)

@@ -69,9 +69,12 @@ func (reg *Registration) Save(path string) error {
 }
 
 // YAML returns the registration in YAML format.
-func (reg *Registration) YAML() string {
-	data, _ := yaml.Marshal(reg)
-	return string(data)
+func (reg *Registration) YAML() (string, error) {
+	data, err := yaml.Marshal(reg)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // Namespaces contains the three areas that appservices can reserve parts of.
