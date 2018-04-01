@@ -100,7 +100,7 @@ func (nslist *Namespaces) RegisterUserIDs(regex *regexp.Regexp, exclusive bool) 
 
 // RegisterRoomAliases creates an room alias namespace registration.
 func (nslist *Namespaces) RegisterRoomAliases(regex *regexp.Regexp, exclusive bool) {
-	nslist.UserIDs = append(nslist.RoomAliases, Namespace{
+	nslist.RoomAliases = append(nslist.RoomAliases, Namespace{
 		Regex:     regex.String(),
 		Exclusive: exclusive,
 	})
@@ -108,7 +108,7 @@ func (nslist *Namespaces) RegisterRoomAliases(regex *regexp.Regexp, exclusive bo
 
 // RegisterRoomIDs creates an room ID namespace registration.
 func (nslist *Namespaces) RegisterRoomIDs(regex *regexp.Regexp, exclusive bool) {
-	nslist.UserIDs = append(nslist.RoomIDs, Namespace{
+	nslist.RoomIDs = append(nslist.RoomIDs, Namespace{
 		Regex:     regex.String(),
 		Exclusive: exclusive,
 	})
