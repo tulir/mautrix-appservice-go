@@ -41,6 +41,10 @@ func readString(reader *bufio.Reader, message, defaultValue string) (string, err
 	if len(val) == 0 {
 		return defaultValue, nil
 	}
+	val = strings.TrimSuffix(val, "\r")
+	if len(val) == 0 {
+		return defaultValue, nil
+	}
 	return val, nil
 }
 
@@ -108,7 +112,7 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	}
 	asPort, convErr := strconv.Atoi(asInput)
 	if convErr != nil {
-		fmt.Println("Failed to parse port:", err)
+		fmt.Println("Failed to parse port:", convErr)
 		return
 	}
 	registration.URL = fmt.Sprintf("%s://%s:%d", asProtocol, asHostname, asPort)
