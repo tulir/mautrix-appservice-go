@@ -27,18 +27,21 @@ import (
 	"github.com/fatih/color"
 )
 
-func readString(reader *bufio.Reader, message, defaultValue string) string {
+func readString(reader *bufio.Reader, message, defaultValue string) (string, error) {
 	color.Green(message)
 	if len(defaultValue) > 0 {
 		fmt.Printf("[%s]", defaultValue)
 	}
 	fmt.Print("> ")
-	val, _ := reader.ReadString('\n')
+	val, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
 	val = strings.TrimSuffix(val, "\n")
 	if len(val) == 0 {
 		return defaultValue
 	}
-	return val
+	return val, nil
 }
 
 const (
@@ -47,7 +50,7 @@ const (
 )
 
 // GenerateRegistration asks the user questions and generates a config and registration based on the answers.
-func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers bool) {
+func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers bool) error {
 	var boldCyan = color.New(color.FgCyan).Add(color.Bold)
 	var boldGreen = color.New(color.FgGreen).Add(color.Bold)
 	boldCyan.Println("Generating appservice config and registration.")
@@ -69,7 +72,10 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 		}
 	}
 	asHostname := readString(reader, "Enter appservice hostname", "localhost")
-	asPort, _ := strconv.Atoi(readString(reader, "Enter appservice host port", "29313"))
+	asPort, convErr := strconv.Atoi(readString(reader, "Enter appservice host port", "29313"))
+	if convErr != nil {
+		return convErr
+	}
 	registration.URL = fmt.Sprintf("%s://%s:%d", asProtocol, asHostname, asPort)
 	config.Host.Hostname = asHostname
 	config.Host.Port = uint16(asPort)
@@ -87,7 +93,10 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 				fmt.Println(err)
 				continue
 			}
-			userNamespaceRegex, _ := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			userNamespaceRegex, regexErr := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			if regexErr != nil {
+				return regexErr
+			}
 			if reserveRooms {
 				registration.Namespaces.RegisterRoomAliases(roomNamespaceRegex, true)
 			}
