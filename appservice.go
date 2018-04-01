@@ -37,12 +37,15 @@ func Create() *Config {
 }
 
 // Load an appservice config from a file.
-func Load(path string) *Config {
-	data, _ := ioutil.ReadFile(path)
+func Load(path string) (*Config, error) {
+	data, readErr := ioutil.ReadFile(path)
+	if readErr != nil {
+		return nil, readErr
+	}
 
 	var config = &Config{}
 	yaml.Unmarshal(data, config)
-	return config
+	return config, nil
 }
 
 // QueryHandler handles room alias and user ID queries from the homeserver.
@@ -91,13 +94,16 @@ func (as *Config) Save(path string) error {
 }
 
 // YAML returns the config in YAML format.
-func (as *Config) YAML() string {
-	data, _ := yaml.Marshal(as)
+func (as *Config) YAML() (string, error) {
+	data, err := yaml.Marshal(as)
+	if err != nil {
+		return "", err
+	}
 	return string(data)
 }
 
 // Init initializes the logger and loads the registration of this appservice.
-func (as *Config) Init(queryHandler QueryHandler) bool {
+func (as *Config) Init(queryHandler QueryHandler) (bool, error) {
 	as.Events = make(chan Event, EventChannelSize)
 	as.QueryHandler = queryHandler
 
@@ -108,12 +114,11 @@ func (as *Config) Init(queryHandler QueryHandler) bool {
 	var err error
 	as.Registration, err = LoadRegistration(as.RegistrationPath)
 	if err != nil {
-		as.Log.Fatalln("Failed to load registration:", err)
-		return false
+		return false, err
 	}
 
 	as.Log.Debugln("Appservice initialized successfully.")
-	return true
+	return true, nil
 }
 
 // LogConfig contains configs for the logger.
