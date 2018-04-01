@@ -50,7 +50,7 @@ const (
 )
 
 // GenerateRegistration asks the user questions and generates a config and registration based on the answers.
-func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers bool) error {
+func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers bool) {
 	var boldCyan = color.New(color.FgCyan).Add(color.Bold)
 	var boldGreen = color.New(color.FgGreen).Add(color.Bold)
 	boldCyan.Println("Generating appservice config and registration.")
@@ -74,7 +74,8 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 	asHostname := readString(reader, "Enter appservice hostname", "localhost")
 	asPort, convErr := strconv.Atoi(readString(reader, "Enter appservice host port", "29313"))
 	if convErr != nil {
-		return convErr
+		fmt.Println("Failed to parse port:", err)
+		return
 	}
 	registration.URL = fmt.Sprintf("%s://%s:%d", asProtocol, asHostname, asPort)
 	config.Host.Hostname = asHostname
@@ -93,9 +94,10 @@ func GenerateRegistration(asName, botName string, reserveRooms, reserveUsers boo
 				fmt.Println(err)
 				continue
 			}
-			userNamespaceRegex, regexErr := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
-			if regexErr != nil {
-				return regexErr
+			userNamespaceRegex, regexpErr := regexp.Compile(fmt.Sprintf("@%s.+:%s", namespace, config.HomeserverDomain))
+			if regexpErr != nil {
+				fmt.Println("Failed to generate regexp for the userNamespace:", err)
+				return
 			}
 			if reserveRooms {
 				registration.Namespaces.RegisterRoomAliases(roomNamespaceRegex, true)
