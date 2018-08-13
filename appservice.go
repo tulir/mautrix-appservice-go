@@ -8,26 +8,29 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"maunium.net/go/maulogger"
+	"strings"
+	"net/http"
+	"errors"
 )
 
 // EventChannelSize is the size for the Events channel in Appservice instances.
 var EventChannelSize = 64
 
 // Create a blank appservice instance.
-func Create() *Config {
-	return &Config{
+func Create() *AppService {
+	return &AppService{
 		LogConfig: CreateLogConfig(),
 	}
 }
 
 // Load an appservice config from a file.
-func Load(path string) (*Config, error) {
+func Load(path string) (*AppService, error) {
 	data, readErr := ioutil.ReadFile(path)
 	if readErr != nil {
 		return nil, readErr
 	}
 
-	var config = &Config{}
+	var config = &AppService{}
 	yaml.Unmarshal(data, config)
 	return config, nil
 }
@@ -38,21 +41,33 @@ type QueryHandler interface {
 	QueryUser(userID string) bool
 }
 
-// Config is the main config for all appservices.
+type QueryHandlerStub struct{}
+
+func (qh *QueryHandlerStub) QueryAlias(alias string) bool {
+	return false
+}
+
+func (qh *QueryHandlerStub) QueryUser(userID string) bool {
+	return false
+}
+
+// AppService is the main config for all appservices.
 // It also serves as the appservice instance struct.
-type Config struct {
+type AppService struct {
 	HomeserverDomain string     `yaml:"homeserver_domain"`
 	HomeserverURL    string     `yaml:"homeserver_url"`
 	RegistrationPath string     `yaml:"registration"`
 	Host             HostConfig `yaml:"host"`
 	LogConfig        LogConfig  `yaml:"logging"`
 
-	Registration *Registration     `yaml:"-"`
-	Log          *maulogger.Logger `yaml:"-"`
+	Registration *Registration        `yaml:"-"`
+	Log          *maulogger.Sublogger `yaml:"-"`
 
 	lastProcessedTransaction string       `yaml:"-"`
 	Events                   chan Event   `yaml:"-"`
 	QueryHandler             QueryHandler `yaml:"-"`
+
+	server *http.Server `yaml:"-"`
 }
 
 // HostConfig contains info about how to host the appservice.
@@ -69,7 +84,7 @@ func (hc *HostConfig) Address() string {
 }
 
 // Save saves this config into a file at the given path.
-func (as *Config) Save(path string) error {
+func (as *AppService) Save(path string) error {
 	data, err := yaml.Marshal(as)
 	if err != nil {
 		return err
@@ -78,7 +93,7 @@ func (as *Config) Save(path string) error {
 }
 
 // YAML returns the config in YAML format.
-func (as *Config) YAML() (string, error) {
+func (as *AppService) YAML() (string, error) {
 	data, err := yaml.Marshal(as)
 	if err != nil {
 		return "", err
@@ -87,18 +102,21 @@ func (as *Config) YAML() (string, error) {
 }
 
 // Init initializes the logger and loads the registration of this appservice.
-func (as *Config) Init(queryHandler QueryHandler) (bool, error) {
+func (as *AppService) Init() (bool, error) {
 	as.Events = make(chan Event, EventChannelSize)
-	as.QueryHandler = queryHandler
+	as.QueryHandler = &QueryHandlerStub{}
 
-	as.Log = maulogger.Create()
-	as.LogConfig.Configure(as.Log)
+	log := maulogger.Create()
+	as.LogConfig.Configure(log)
+	as.Log = log.DefaultSub
 	as.Log.Debugln("Logger initialized successfully.")
 
-	var err error
-	as.Registration, err = LoadRegistration(as.RegistrationPath)
-	if err != nil {
-		return false, err
+	if len(as.RegistrationPath) > 0 {
+		var err error
+		as.Registration, err = LoadRegistration(as.RegistrationPath)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	as.Log.Debugln("Appservice initialized successfully.")
@@ -112,7 +130,47 @@ type LogConfig struct {
 	FileDateFormat  string `yaml:"file_date_format"`
 	FileMode        uint32 `yaml:"file_mode"`
 	TimestampFormat string `yaml:"timestamp_format"`
-	Debug           bool   `yaml:"print_debug"`
+	RawPrintLevel   string `yaml:"print_level"`
+	PrintLevel      int    `yaml:"-"`
+}
+
+func (lc LogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	err := unmarshal(lc)
+	if err != nil {
+		return err
+	}
+
+	switch strings.ToUpper(lc.RawPrintLevel) {
+	case "DEBUG":
+		lc.PrintLevel = maulogger.LevelDebug.Severity
+	case "INFO":
+		lc.PrintLevel = maulogger.LevelInfo.Severity
+	case "WARN", "WARNING":
+		lc.PrintLevel = maulogger.LevelWarn.Severity
+	case "ERR", "ERROR":
+		lc.PrintLevel = maulogger.LevelError.Severity
+	case "FATAL":
+		lc.PrintLevel = maulogger.LevelFatal.Severity
+	default:
+		return errors.New("invalid print level " + lc.RawPrintLevel)
+	}
+	return err
+}
+
+func (lc LogConfig) MarshalYAML() (interface{}, error) {
+	switch {
+	case lc.PrintLevel >= maulogger.LevelFatal.Severity:
+		lc.RawPrintLevel = maulogger.LevelFatal.Name
+	case lc.PrintLevel >= maulogger.LevelError.Severity:
+		lc.RawPrintLevel = maulogger.LevelError.Name
+	case lc.PrintLevel >= maulogger.LevelWarn.Severity:
+		lc.RawPrintLevel = maulogger.LevelWarn.Name
+	case lc.PrintLevel >= maulogger.LevelInfo.Severity:
+		lc.RawPrintLevel = maulogger.LevelInfo.Name
+	default:
+		lc.RawPrintLevel = maulogger.LevelDebug.Name
+	}
+	return lc, nil
 }
 
 // CreateLogConfig creates a basic LogConfig.
@@ -123,7 +181,7 @@ func CreateLogConfig() LogConfig {
 		TimestampFormat: "Jan _2, 2006 15:04:05",
 		FileMode:        0600,
 		FileDateFormat:  "2006-01-02",
-		Debug:           false,
+		PrintLevel:      10,
 	}
 }
 
@@ -145,7 +203,5 @@ func (lc LogConfig) Configure(log *maulogger.Logger) {
 	log.FileMode = os.FileMode(lc.FileMode)
 	log.FileTimeFormat = lc.FileDateFormat
 	log.TimeFormat = lc.TimestampFormat
-	if lc.Debug {
-		log.PrintLevel = maulogger.LevelDebug.Severity
-	}
+	log.PrintLevel = lc.PrintLevel
 }

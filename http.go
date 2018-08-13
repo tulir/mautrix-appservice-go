@@ -4,30 +4,45 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-
 	"github.com/gorilla/mux"
+	"context"
+	"time"
 )
 
 // Listen starts the HTTP server that listens for calls from the Matrix homeserver.
-func (as *Config) Listen() {
+func (as *AppService) Start() {
 	r := mux.NewRouter()
 	r.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
 	r.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
 	r.HandleFunc("/users/{userID}", as.GetUser).Methods(http.MethodGet)
 
 	var err error
+	as.server = &http.Server{
+		Addr:    as.Host.Address(),
+		Handler: r,
+	}
 	if len(as.Host.TLSCert) == 0 || len(as.Host.TLSKey) == 0 {
-		err = http.ListenAndServe(as.Host.Address(), r)
+		err = as.server.ListenAndServe()
 	} else {
-		err = http.ListenAndServeTLS(as.Host.Address(), as.Host.TLSCert, as.Host.TLSKey, r)
+		err = as.server.ListenAndServeTLS(as.Host.TLSCert, as.Host.TLSKey)
 	}
 	if err != nil {
 		as.Log.Fatalln("Error while listening:", err)
 	}
 }
 
+func (as *AppService) Stop() {
+	if as.server == nil {
+		return
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	as.server.Shutdown(ctx)
+	as.server = nil
+}
+
 // CheckServerToken checks if the given request originated from the Matrix homeserver.
-func (as *Config) CheckServerToken(w http.ResponseWriter, r *http.Request) bool {
+func (as *AppService) CheckServerToken(w http.ResponseWriter, r *http.Request) bool {
 	query := r.URL.Query()
 	val, ok := query["access_token"]
 	if !ok {
@@ -45,7 +60,7 @@ func (as *Config) CheckServerToken(w http.ResponseWriter, r *http.Request) bool 
 }
 
 // PutTransaction handles a /transactions PUT call from the homeserver.
-func (as *Config) PutTransaction(w http.ResponseWriter, r *http.Request) {
+func (as *AppService) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	if !as.CheckServerToken(w, r) {
 		return
 	}
@@ -96,7 +111,7 @@ func (as *Config) PutTransaction(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetRoom handles a /rooms GET call from the homeserver.
-func (as *Config) GetRoom(w http.ResponseWriter, r *http.Request) {
+func (as *AppService) GetRoom(w http.ResponseWriter, r *http.Request) {
 	if !as.CheckServerToken(w, r) {
 		return
 	}
@@ -115,7 +130,7 @@ func (as *Config) GetRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetUser handles a /users GET call from the homeserver.
-func (as *Config) GetUser(w http.ResponseWriter, r *http.Request) {
+func (as *AppService) GetUser(w http.ResponseWriter, r *http.Request) {
 	if !as.CheckServerToken(w, r) {
 		return
 	}
