@@ -3,26 +3,16 @@ package appservice
 import (
 	"encoding/json"
 	"net/http"
+	"maunium.net/go/gomatrix"
 )
 
 // EventList contains a list of events.
 type EventList struct {
-	Events []Event `json:"events"`
+	Events []*gomatrix.Event `json:"events"`
 }
 
 // EventListener is a function that receives events.
-type EventListener func(event Event)
-
-// Event contains the base fields for events
-type Event struct {
-	ID               string                 `json:"event_id"`
-	Type             string                 `json:"type"`
-	Content          map[string]interface{} `json:"content"`
-	SenderID         string                 `json:"user_id"`
-	RoomID           string                 `json:"room_id"`
-	OriginServerTime int64                  `json:"origin_server_ts"`
-	Age              int64                  `json:"age"`
-}
+type EventListener func(event *gomatrix.Event)
 
 // WriteBlankOK writes a blank OK message as a reply to a HTTP request.
 func WriteBlankOK(w http.ResponseWriter) {
@@ -64,6 +54,6 @@ const (
 // Custom ErrorCodes
 const (
 	ErrNoTransactionID ErrorCode = "NET.MAUNIUM.NO_TRANSACTION_ID"
-	ErrNoBody          ErrorCode = "NET.MAUNIUM.NO_REUQEST_BODY"
+	ErrNoBody          ErrorCode = "NET.MAUNIUM.NO_REQUEST_BODY"
 	ErrInvalidJSON     ErrorCode = "NET.MAUNIUM.INVALID_JSON"
 )

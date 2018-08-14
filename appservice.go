@@ -11,6 +11,7 @@ import (
 	"strings"
 	"net/http"
 	"errors"
+	"maunium.net/go/gomatrix"
 )
 
 // EventChannelSize is the size for the Events channel in Appservice instances.
@@ -63,9 +64,9 @@ type AppService struct {
 	Registration *Registration        `yaml:"-"`
 	Log          *maulogger.Sublogger `yaml:"-"`
 
-	lastProcessedTransaction string       `yaml:"-"`
-	Events                   chan Event   `yaml:"-"`
-	QueryHandler             QueryHandler `yaml:"-"`
+	lastProcessedTransaction string               `yaml:"-"`
+	Events                   chan *gomatrix.Event `yaml:"-"`
+	QueryHandler             QueryHandler         `yaml:"-"`
 
 	server *http.Server `yaml:"-"`
 }
@@ -101,9 +102,29 @@ func (as *AppService) YAML() (string, error) {
 	return string(data), nil
 }
 
+func (as *AppService) BotMXID() string {
+	return fmt.Sprintf("@%s:%s", as.Registration.SenderLocalpart, as.HomeserverDomain)
+}
+
+func (as *AppService) Client(userID string) *gomatrix.Client {
+	client, err := gomatrix.NewClient(as.HomeserverURL, userID, as.Registration.AppToken)
+	if err != nil {
+		as.Log.Fatalln("Failed to create gomatrix instance:", err)
+		return nil
+	}
+	client.Syncer = nil
+	client.Store = nil
+	client.AppServiceUserID = userID
+	return client
+}
+
+func (as *AppService) BotClient() *gomatrix.Client {
+	return as.Client(as.BotMXID())
+}
+
 // Init initializes the logger and loads the registration of this appservice.
 func (as *AppService) Init() (bool, error) {
-	as.Events = make(chan Event, EventChannelSize)
+	as.Events = make(chan *gomatrix.Event, EventChannelSize)
 	as.QueryHandler = &QueryHandlerStub{}
 
 	log := maulogger.Create()
