@@ -21,13 +21,16 @@ func (as *AppService) Start() {
 		Addr:    as.Host.Address(),
 		Handler: r,
 	}
+	as.Log.Infoln("Listening on", as.Host.Address())
 	if len(as.Host.TLSCert) == 0 || len(as.Host.TLSKey) == 0 {
 		err = as.server.ListenAndServe()
 	} else {
 		err = as.server.ListenAndServeTLS(as.Host.TLSCert, as.Host.TLSKey)
 	}
-	if err != nil {
+	if err != nil && err.Error() != "http: Server closed" {
 		as.Log.Fatalln("Error while listening:", err)
+	} else {
+		as.Log.Debugln("Listener stopped.")
 	}
 }
 

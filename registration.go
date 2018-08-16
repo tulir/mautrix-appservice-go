@@ -63,9 +63,9 @@ func (reg *Registration) YAML() (string, error) {
 
 // Namespaces contains the three areas that appservices can reserve parts of.
 type Namespaces struct {
-	UserIDs     []Namespace `yaml:"users"`
-	RoomAliases []Namespace `yaml:"aliases"`
-	RoomIDs     []Namespace `yaml:"rooms"`
+	UserIDs     []Namespace `yaml:"users,omitempty"`
+	RoomAliases []Namespace `yaml:"aliases,omitempty"`
+	RoomIDs     []Namespace `yaml:"rooms,omitempty"`
 }
 
 // Namespace is a reserved namespace in any area.

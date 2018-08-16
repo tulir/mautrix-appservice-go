@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"errors"
 	"maunium.net/go/gomatrix"
+	"regexp"
 )
 
 // EventChannelSize is the size for the Events channel in Appservice instances.
@@ -20,7 +21,10 @@ var EventChannelSize = 64
 // Create a blank appservice instance.
 func Create() *AppService {
 	return &AppService{
-		LogConfig: CreateLogConfig(),
+		LogConfig:  CreateLogConfig(),
+		clients:    make(map[string]*gomatrix.Client),
+		intents:    make(map[string]*IntentAPI),
+		StateStore: &BasicStateStore{},
 	}
 }
 
@@ -61,14 +65,19 @@ type AppService struct {
 	Host             HostConfig `yaml:"host"`
 	LogConfig        LogConfig  `yaml:"logging"`
 
-	Registration *Registration        `yaml:"-"`
-	Log          *maulogger.Sublogger `yaml:"-"`
+	Registration *Registration    `yaml:"-"`
+	Log          maulogger.Logger `yaml:"-"`
 
-	lastProcessedTransaction string               `yaml:"-"`
+	lastProcessedTransaction string
 	Events                   chan *gomatrix.Event `yaml:"-"`
 	QueryHandler             QueryHandler         `yaml:"-"`
+	StateStore               StateStore           `yaml:"-"`
 
-	server *http.Server `yaml:"-"`
+	server    *http.Server
+	botClient *gomatrix.Client
+	botIntent *IntentAPI
+	clients   map[string]*gomatrix.Client
+	intents   map[string]*IntentAPI
 }
 
 // HostConfig contains info about how to host the appservice.
@@ -106,20 +115,67 @@ func (as *AppService) BotMXID() string {
 	return fmt.Sprintf("@%s:%s", as.Registration.SenderLocalpart, as.HomeserverDomain)
 }
 
-func (as *AppService) Client(userID string) *gomatrix.Client {
-	client, err := gomatrix.NewClient(as.HomeserverURL, userID, as.Registration.AppToken)
-	if err != nil {
-		as.Log.Fatalln("Failed to create gomatrix instance:", err)
-		return nil
+var mxidRegex = regexp.MustCompile("^@[^:]+:.+$")
+
+func (as *AppService) ParseUserID(mxid string) (string, string) {
+	match := mxidRegex.FindStringSubmatch(mxid)
+	if match != nil && len(match) == 3 {
+		return match[1], match[2]
 	}
-	client.Syncer = nil
-	client.Store = nil
-	client.AppServiceUserID = userID
+	return "", ""
+}
+
+func (as *AppService) Intent(userID string) *IntentAPI {
+	intent, ok := as.intents[userID]
+	if !ok {
+		localpart, homeserver := as.ParseUserID(userID)
+		if len(localpart) == 0 || homeserver != as.HomeserverDomain {
+			return nil
+		}
+		intent = as.NewIntentAPI(localpart)
+		as.intents[userID] = intent
+	}
+	return intent
+}
+
+func (as *AppService) BotIntent() *IntentAPI {
+	if as.botIntent == nil {
+		as.botIntent = as.NewIntentAPI(as.Registration.SenderLocalpart)
+	}
+	return as.botIntent
+}
+
+func (as *AppService) Client(userID string) *gomatrix.Client {
+	client, ok := as.clients[userID]
+	if !ok {
+		var err error
+		client, err = gomatrix.NewClient(as.HomeserverURL, userID, as.Registration.AppToken)
+		if err != nil {
+			as.Log.Fatalln("Failed to create gomatrix instance:", err)
+			return nil
+		}
+		client.Syncer = nil
+		client.Store = nil
+		client.AppServiceUserID = userID
+		client.Logger = as.Log.Sub(userID)
+		as.clients[userID] = client
+	}
 	return client
 }
 
 func (as *AppService) BotClient() *gomatrix.Client {
-	return as.Client(as.BotMXID())
+	if as.botClient == nil {
+		var err error
+		as.botClient, err = gomatrix.NewClient(as.HomeserverURL, as.BotMXID(), as.Registration.AppToken)
+		if err != nil {
+			as.Log.Fatalln("Failed to create gomatrix instance:", err)
+			return nil
+		}
+		as.botClient.Syncer = nil
+		as.botClient.Store = nil
+		as.botClient.Logger = as.Log.Sub("Bot")
+	}
+	return as.botClient
 }
 
 // Init initializes the logger and loads the registration of this appservice.
@@ -127,9 +183,8 @@ func (as *AppService) Init() (bool, error) {
 	as.Events = make(chan *gomatrix.Event, EventChannelSize)
 	as.QueryHandler = &QueryHandlerStub{}
 
-	log := maulogger.Create()
-	as.LogConfig.Configure(log)
-	as.Log = log.DefaultSub
+	as.Log = maulogger.Create()
+	as.LogConfig.Configure(as.Log)
 	as.Log.Debugln("Logger initialized successfully.")
 
 	if len(as.RegistrationPath) > 0 {
@@ -155,8 +210,10 @@ type LogConfig struct {
 	PrintLevel      int    `yaml:"-"`
 }
 
-func (lc LogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	err := unmarshal(lc)
+type umLogConfig LogConfig
+
+func (lc *LogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	err := unmarshal((*umLogConfig)(lc))
 	if err != nil {
 		return err
 	}
@@ -178,7 +235,7 @@ func (lc LogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-func (lc LogConfig) MarshalYAML() (interface{}, error) {
+func (lc *LogConfig) MarshalYAML() (interface{}, error) {
 	switch {
 	case lc.PrintLevel >= maulogger.LevelFatal.Severity:
 		lc.RawPrintLevel = maulogger.LevelFatal.Name
@@ -219,10 +276,11 @@ func (lc LogConfig) GetFileFormat() maulogger.LoggerFileFormat {
 }
 
 // Configure configures a mauLogger instance with the data in this struct.
-func (lc LogConfig) Configure(log *maulogger.Logger) {
-	log.FileFormat = lc.GetFileFormat()
-	log.FileMode = os.FileMode(lc.FileMode)
-	log.FileTimeFormat = lc.FileDateFormat
-	log.TimeFormat = lc.TimestampFormat
-	log.PrintLevel = lc.PrintLevel
+func (lc LogConfig) Configure(log maulogger.Logger) {
+	basicLogger := log.(*maulogger.BasicLogger)
+	basicLogger.FileFormat = lc.GetFileFormat()
+	basicLogger.FileMode = os.FileMode(lc.FileMode)
+	basicLogger.FileTimeFormat = lc.FileDateFormat
+	basicLogger.TimeFormat = lc.TimestampFormat
+	basicLogger.PrintLevel = lc.PrintLevel
 }
