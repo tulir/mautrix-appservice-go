@@ -115,10 +115,10 @@ func (as *AppService) BotMXID() string {
 	return fmt.Sprintf("@%s:%s", as.Registration.SenderLocalpart, as.HomeserverDomain)
 }
 
-var mxidRegex = regexp.MustCompile("^@[^:]+:.+$")
+var MatrixUserIDRegex = regexp.MustCompile("^@[^:]+:.+$")
 
-func (as *AppService) ParseUserID(mxid string) (string, string) {
-	match := mxidRegex.FindStringSubmatch(mxid)
+func ParseUserID(mxid string) (string, string) {
+	match := MatrixUserIDRegex.FindStringSubmatch(mxid)
 	if match != nil && len(match) == 3 {
 		return match[1], match[2]
 	}
@@ -128,7 +128,7 @@ func (as *AppService) ParseUserID(mxid string) (string, string) {
 func (as *AppService) Intent(userID string) *IntentAPI {
 	intent, ok := as.intents[userID]
 	if !ok {
-		localpart, homeserver := as.ParseUserID(userID)
+		localpart, homeserver := ParseUserID(userID)
 		if len(localpart) == 0 || homeserver != as.HomeserverDomain {
 			return nil
 		}
