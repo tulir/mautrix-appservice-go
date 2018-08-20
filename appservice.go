@@ -115,7 +115,7 @@ func (as *AppService) BotMXID() string {
 	return fmt.Sprintf("@%s:%s", as.Registration.SenderLocalpart, as.HomeserverDomain)
 }
 
-var MatrixUserIDRegex = regexp.MustCompile("^@[^:]+:.+$")
+var MatrixUserIDRegex = regexp.MustCompile("^@([^:]+):(.+)$")
 
 func ParseUserID(mxid string) (string, string) {
 	match := MatrixUserIDRegex.FindStringSubmatch(mxid)
