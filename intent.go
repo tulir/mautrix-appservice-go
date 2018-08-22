@@ -62,20 +62,111 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 	if err != nil {
 		httpErr, ok := err.(gomatrix.HTTPError)
 		if !ok || httpErr.RespError.ErrCode != "M_FORBIDDEN" || intent.bot == nil {
-			_, inviteErr := intent.bot.InviteUser(roomID, &gomatrix.ReqInviteUser{
-				UserID: intent.UserID,
-			})
-			if inviteErr != nil {
-				return err
-			}
-			resp, err = intent.JoinRoom(roomID, "", nil)
-			if err != nil {
-				return err
-			}
+			return httpErr
+		}
+		_, inviteErr := intent.bot.InviteUser(roomID, &gomatrix.ReqInviteUser{
+			UserID: intent.UserID,
+		})
+		if inviteErr != nil {
+			return err
+		}
+		resp, err = intent.JoinRoom(roomID, "", nil)
+		if err != nil {
+			return err
 		}
 	}
 	intent.as.StateStore.SetMembership(intent.UserID, resp.RoomID, "join")
 	return nil
+}
+
+func (intent *IntentAPI) SendMessageEvent(roomID string, eventType string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendMessageEvent(roomID, eventType, contentJSON)
+}
+
+func (intent *IntentAPI) SendMassagedMessageEvent(roomID string, eventType string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendMassagedMessageEvent(roomID, eventType, contentJSON, ts)
+}
+
+func (intent *IntentAPI) SendStateEvent(roomID, eventType, stateKey string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendStateEvent(roomID, eventType, stateKey, contentJSON)
+}
+
+func (intent *IntentAPI) SendMassagedStateEvent(roomID, eventType, stateKey string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendMassagedStateEvent(roomID, eventType, stateKey, contentJSON, ts)
+}
+
+func (intent *IntentAPI) SendText(roomID, text string) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendText(roomID, text)
+}
+
+func (intent *IntentAPI) SendImage(roomID, body, url string) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendImage(roomID, body, url)
+}
+
+func (intent *IntentAPI) SendVideo(roomID, body, url string) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendVideo(roomID, body, url)
+}
+
+func (intent *IntentAPI) SendNotice(roomID, text string) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.SendNotice(roomID, text)
+}
+
+func (intent *IntentAPI) RedactEvent(roomID, eventID string, req *gomatrix.ReqRedact) (*gomatrix.RespSendEvent, error) {
+	err := intent.EnsureJoined(roomID)
+	if err != nil {
+		return nil, err
+	}
+	return intent.Client.RedactEvent(roomID, eventID, req)
+}
+
+func (intent *IntentAPI) SetRoomName(roomID, roomName string) (*gomatrix.RespSendEvent, error) {
+	return intent.SendStateEvent(roomID, "m.room.name", "", map[string]interface{}{
+		"name": roomName,
+	})
+}
+
+func (intent *IntentAPI) SetRoomAvatar(roomID, avatarURL string) (*gomatrix.RespSendEvent, error) {
+	return intent.SendStateEvent(roomID, "m.room.avatar", "", map[string]interface{}{
+		"url": avatarURL,
+	})
+}
+
+func (intent *IntentAPI) SetRoomTopic(roomID, topic string) (*gomatrix.RespSendEvent, error) {
+	return intent.SendStateEvent(roomID, "m.room.topic", "", map[string]interface{}{
+		"topic": topic,
+	})
 }
 
 func (intent *IntentAPI) SetDisplayName(displayName string) error {
