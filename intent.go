@@ -53,7 +53,7 @@ func (intent *IntentAPI) EnsureRegistered() error {
 }
 
 func (intent *IntentAPI) EnsureJoined(roomID string) error {
-	if intent.as.StateStore.IsInRoom(intent.UserID, roomID) {
+	if intent.as.StateStore.IsInRoom(roomID, intent.UserID) {
 		return nil
 	}
 
