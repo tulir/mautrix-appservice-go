@@ -107,6 +107,7 @@ func (as *AppService) PutTransaction(w http.ResponseWriter, r *http.Request) {
 
 	for _, event := range eventList.Events {
 		as.Log.Debugln("Received event", event.ID)
+		as.UpdateState(event)
 		as.Events <- event
 	}
 	as.lastProcessedTransaction = txnID

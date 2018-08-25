@@ -1,6 +1,7 @@
 package appservice
 
 import (
+	"maunium.net/go/gomatrix"
 	"strings"
 )
 
@@ -10,6 +11,13 @@ type StateStore interface {
 
 	IsInRoom(userID, roomID string) bool
 	SetMembership(userID, roomID, membership string)
+}
+
+func (as *AppService) UpdateState(evt *gomatrix.Event) {
+	switch evt.Type {
+	case gomatrix.StateMember:
+		as.StateStore.SetMembership(evt.GetStateKey(), evt.RoomID, evt.Content.Membership)
+	}
 }
 
 type BasicStateStore struct {

@@ -1,8 +1,8 @@
 package appservice
 
 import (
-	"maunium.net/go/gomatrix"
 	"fmt"
+	"maunium.net/go/gomatrix"
 )
 
 type IntentAPI struct {
@@ -57,7 +57,10 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 		return nil
 	}
 
-	intent.EnsureRegistered()
+	if err := intent.EnsureRegistered(); err != nil {
+		return err
+	}
+
 	resp, err := intent.JoinRoom(roomID, "", nil)
 	if err != nil {
 		httpErr, ok := err.(gomatrix.HTTPError)
@@ -75,77 +78,68 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 			return err
 		}
 	}
-	intent.as.StateStore.SetMembership(intent.UserID, resp.RoomID, "join")
+	intent.as.StateStore.SetMembership(resp.RoomID, intent.UserID, "join")
 	return nil
 }
 
 func (intent *IntentAPI) SendMessageEvent(roomID string, eventType string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMessageEvent(roomID, eventType, contentJSON)
 }
 
 func (intent *IntentAPI) SendMassagedMessageEvent(roomID string, eventType string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMassagedMessageEvent(roomID, eventType, contentJSON, ts)
 }
 
 func (intent *IntentAPI) SendStateEvent(roomID, eventType, stateKey string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendStateEvent(roomID, eventType, stateKey, contentJSON)
 }
 
 func (intent *IntentAPI) SendMassagedStateEvent(roomID, eventType, stateKey string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMassagedStateEvent(roomID, eventType, stateKey, contentJSON, ts)
 }
 
 func (intent *IntentAPI) SendText(roomID, text string) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendText(roomID, text)
 }
 
 func (intent *IntentAPI) SendImage(roomID, body, url string) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendImage(roomID, body, url)
 }
 
 func (intent *IntentAPI) SendVideo(roomID, body, url string) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendVideo(roomID, body, url)
 }
 
 func (intent *IntentAPI) SendNotice(roomID, text string) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendNotice(roomID, text)
 }
 
 func (intent *IntentAPI) RedactEvent(roomID, eventID string, req *gomatrix.ReqRedact) (*gomatrix.RespSendEvent, error) {
-	err := intent.EnsureJoined(roomID)
-	if err != nil {
+	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.RedactEvent(roomID, eventID, req)
@@ -170,11 +164,15 @@ func (intent *IntentAPI) SetRoomTopic(roomID, topic string) (*gomatrix.RespSendE
 }
 
 func (intent *IntentAPI) SetDisplayName(displayName string) error {
-	intent.EnsureRegistered()
+	if err := intent.EnsureRegistered(); err != nil {
+		return err
+	}
 	return intent.Client.SetDisplayName(displayName)
 }
 
 func (intent *IntentAPI) SetAvatarURL(avatarURL string) error {
-	intent.EnsureRegistered()
+	if err := intent.EnsureRegistered(); err != nil {
+		return err
+	}
 	return intent.Client.SetAvatarURL(avatarURL)
 }
