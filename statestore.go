@@ -54,15 +54,15 @@ func NewBasicStateStore() StateStore {
 
 func (store *BasicStateStore) IsRegistered(userID string) bool {
 	store.registrationsLock.RLock()
+	defer store.registrationsLock.RUnlock()
 	registered, ok := store.Registrations[userID]
-	store.registrationsLock.RUnlock()
 	return ok && registered
 }
 
 func (store *BasicStateStore) MarkRegistered(userID string) {
 	store.registrationsLock.Lock()
+	defer store.registrationsLock.Unlock()
 	store.Registrations[userID] = true
-	store.registrationsLock.Unlock()
 }
 
 func (store *BasicStateStore) IsTyping(roomID, userID string) bool {
@@ -78,6 +78,7 @@ func (store *BasicStateStore) IsTyping(roomID, userID string) bool {
 
 func (store *BasicStateStore) SetTyping(roomID, userID string, timeout int64) {
 	store.typingLock.Lock()
+	defer store.typingLock.Unlock()
 	roomTyping, ok := store.Typing[roomID]
 	if !ok {
 		if timeout >= 0 {
@@ -88,14 +89,13 @@ func (store *BasicStateStore) SetTyping(roomID, userID string, timeout int64) {
 			roomTyping = make(map[string]int64)
 		}
 	} else {
-		if timeout < 0 {
-			delete(roomTyping, userID)
-		} else {
+		if timeout >= 0 {
 			roomTyping[userID] = time.Now().Unix() + timeout
+		} else {
+			delete(roomTyping, userID)
 		}
 	}
 	store.Typing[roomID] = roomTyping
-	store.typingLock.Unlock()
 }
 
 func (store *BasicStateStore) GetRoomMemberships(roomID string) map[string]string {
