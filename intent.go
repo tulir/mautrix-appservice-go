@@ -82,32 +82,72 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 	return nil
 }
 
-func (intent *IntentAPI) SendMessageEvent(roomID string, eventType string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
+func (intent *IntentAPI) SendMessageEvent(roomID string, eventType gomatrix.EventType, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
 	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMessageEvent(roomID, eventType, contentJSON)
 }
 
-func (intent *IntentAPI) SendMassagedMessageEvent(roomID string, eventType string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
+func (intent *IntentAPI) SendMassagedMessageEvent(roomID string, eventType gomatrix.EventType, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
 	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMassagedMessageEvent(roomID, eventType, contentJSON, ts)
 }
 
-func (intent *IntentAPI) SendStateEvent(roomID, eventType, stateKey string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
+func (intent *IntentAPI) SendStateEvent(roomID string, eventType gomatrix.EventType, stateKey string, contentJSON interface{}) (*gomatrix.RespSendEvent, error) {
 	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendStateEvent(roomID, eventType, stateKey, contentJSON)
 }
 
-func (intent *IntentAPI) SendMassagedStateEvent(roomID, eventType, stateKey string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
+func (intent *IntentAPI) SendMassagedStateEvent(roomID string, eventType gomatrix.EventType, stateKey string, contentJSON interface{}, ts int64) (*gomatrix.RespSendEvent, error) {
 	if err := intent.EnsureJoined(roomID); err != nil {
 		return nil, err
 	}
 	return intent.Client.SendMassagedStateEvent(roomID, eventType, stateKey, contentJSON, ts)
+}
+
+func (intent *IntentAPI) StateEvent(roomID string, eventType gomatrix.EventType, stateKey string, outContent interface{}) (err error) {
+	if err := intent.EnsureJoined(roomID); err != nil {
+		return err
+	}
+	return intent.Client.StateEvent(roomID, eventType, stateKey, outContent)
+}
+
+func (intent *IntentAPI) PowerLevels(roomID string) (pl *gomatrix.PowerLevels, err error) {
+	pl = intent.as.StateStore.GetPowerLevels(roomID)
+	if pl == nil {
+		pl = &gomatrix.PowerLevels{}
+		err = intent.StateEvent(roomID, gomatrix.StatePowerLevels, "", pl)
+		if err == nil {
+			intent.as.StateStore.SetPowerLevels(roomID, pl)
+		}
+	}
+	return
+}
+
+func (intent *IntentAPI) SetPowerLevels(roomID string, levels *gomatrix.PowerLevels) (resp *gomatrix.RespSendEvent, err error) {
+	resp, err = intent.SendStateEvent(roomID, gomatrix.StatePowerLevels, "", &levels)
+	if err == nil {
+		intent.as.StateStore.SetPowerLevels(roomID, levels)
+	}
+	return
+}
+
+func (intent *IntentAPI) SetPowerLevel(roomID, userID string, level int) (*gomatrix.RespSendEvent, error) {
+	pl, err := intent.PowerLevels(roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	if pl.GetUserLevel(userID) != level {
+		pl.SetUserLevel(userID, level)
+		return intent.SendStateEvent(roomID, gomatrix.StatePowerLevels, "", &pl)
+	}
+	return nil, nil
 }
 
 func (intent *IntentAPI) SendText(roomID, text string) (*gomatrix.RespSendEvent, error) {
