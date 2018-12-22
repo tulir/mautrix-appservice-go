@@ -1,8 +1,8 @@
 package appservice
 
 import (
-	"maunium.net/go/gomatrix"
-	log "maunium.net/go/maulogger"
+	log "maunium.net/go/maulogger/v2"
+	"maunium.net/go/mautrix"
 )
 
 type ExecMode uint8
@@ -19,7 +19,7 @@ type EventProcessor struct {
 	as       *AppService
 	log      log.Logger
 	stop     chan struct{}
-	handlers map[gomatrix.EventType][]gomatrix.OnEventListener
+	handlers map[mautrix.EventType][]mautrix.OnEventListener
 }
 
 func NewEventProcessor(as *AppService) *EventProcessor {
@@ -28,14 +28,14 @@ func NewEventProcessor(as *AppService) *EventProcessor {
 		as:       as,
 		log:      as.Log.Sub("Events"),
 		stop:     make(chan struct{}, 1),
-		handlers: make(map[gomatrix.EventType][]gomatrix.OnEventListener),
+		handlers: make(map[mautrix.EventType][]mautrix.OnEventListener),
 	}
 }
 
-func (ep *EventProcessor) On(evtType gomatrix.EventType, handler gomatrix.OnEventListener) {
+func (ep *EventProcessor) On(evtType mautrix.EventType, handler mautrix.OnEventListener) {
 	handlers, ok := ep.handlers[evtType]
 	if !ok {
-		handlers = []gomatrix.OnEventListener{handler}
+		handlers = []mautrix.OnEventListener{handler}
 	} else {
 		handlers = append(handlers, handler)
 	}

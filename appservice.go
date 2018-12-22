@@ -1,20 +1,20 @@
 package appservice
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
-	"errors"
-	"maunium.net/go/gomatrix"
-	"maunium.net/go/maulogger"
-	"net/http"
-	"regexp"
-	"strings"
+	"maunium.net/go/maulogger/v2"
+	"maunium.net/go/mautrix"
 )
 
 // EventChannelSize is the size for the Events channel in Appservice instances.
@@ -24,7 +24,7 @@ var EventChannelSize = 64
 func Create() *AppService {
 	return &AppService{
 		LogConfig:  CreateLogConfig(),
-		clients:    make(map[string]*gomatrix.Client),
+		clients:    make(map[string]*mautrix.Client),
 		intents:    make(map[string]*IntentAPI),
 		StateStore: NewBasicStateStore(),
 	}
@@ -71,14 +71,14 @@ type AppService struct {
 	Log          maulogger.Logger `yaml:"-"`
 
 	lastProcessedTransaction string
-	Events                   chan *gomatrix.Event `yaml:"-"`
-	QueryHandler             QueryHandler         `yaml:"-"`
-	StateStore               StateStore           `yaml:"-"`
+	Events                   chan *mautrix.Event `yaml:"-"`
+	QueryHandler             QueryHandler        `yaml:"-"`
+	StateStore               StateStore          `yaml:"-"`
 
 	server    *http.Server
-	botClient *gomatrix.Client
+	botClient *mautrix.Client
 	botIntent *IntentAPI
-	clients   map[string]*gomatrix.Client
+	clients   map[string]*mautrix.Client
 	intents   map[string]*IntentAPI
 }
 
@@ -147,11 +147,11 @@ func (as *AppService) BotIntent() *IntentAPI {
 	return as.botIntent
 }
 
-func (as *AppService) Client(userID string) *gomatrix.Client {
+func (as *AppService) Client(userID string) *mautrix.Client {
 	client, ok := as.clients[userID]
 	if !ok {
 		var err error
-		client, err = gomatrix.NewClient(as.HomeserverURL, userID, as.Registration.AppToken)
+		client, err = mautrix.NewClient(as.HomeserverURL, userID, as.Registration.AppToken)
 		if err != nil {
 			as.Log.Fatalln("Failed to create gomatrix instance:", err)
 			return nil
@@ -165,10 +165,10 @@ func (as *AppService) Client(userID string) *gomatrix.Client {
 	return client
 }
 
-func (as *AppService) BotClient() *gomatrix.Client {
+func (as *AppService) BotClient() *mautrix.Client {
 	if as.botClient == nil {
 		var err error
-		as.botClient, err = gomatrix.NewClient(as.HomeserverURL, as.BotMXID(), as.Registration.AppToken)
+		as.botClient, err = mautrix.NewClient(as.HomeserverURL, as.BotMXID(), as.Registration.AppToken)
 		if err != nil {
 			as.Log.Fatalln("Failed to create gomatrix instance:", err)
 			return nil
@@ -182,7 +182,7 @@ func (as *AppService) BotClient() *gomatrix.Client {
 
 // Init initializes the logger and loads the registration of this appservice.
 func (as *AppService) Init() (bool, error) {
-	as.Events = make(chan *gomatrix.Event, EventChannelSize)
+	as.Events = make(chan *mautrix.Event, EventChannelSize)
 	as.QueryHandler = &QueryHandlerStub{}
 
 	as.Log = maulogger.Create()
@@ -266,7 +266,7 @@ func CreateLogConfig() LogConfig {
 }
 
 type FileFormatData struct {
-	Date string
+	Date  string
 	Index int
 }
 
@@ -279,7 +279,7 @@ func (lc LogConfig) GetFileFormat() maulogger.LoggerFileFormat {
 	return func(now string, i int) string {
 		var buf strings.Builder
 		tpl.Execute(&buf, FileFormatData{
-			Date: now,
+			Date:  now,
 			Index: i,
 		})
 		return buf.String()

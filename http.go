@@ -3,10 +3,11 @@ package appservice
 import (
 	"context"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 // Listen starts the HTTP server that listens for calls from the Matrix homeserver.

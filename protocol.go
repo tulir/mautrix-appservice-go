@@ -2,17 +2,18 @@ package appservice
 
 import (
 	"encoding/json"
-	"maunium.net/go/gomatrix"
 	"net/http"
+
+	"maunium.net/go/mautrix"
 )
 
 // EventList contains a list of events.
 type EventList struct {
-	Events []*gomatrix.Event `json:"events"`
+	Events []*mautrix.Event `json:"events"`
 }
 
 // EventListener is a function that receives events.
-type EventListener func(event *gomatrix.Event)
+type EventListener func(event *mautrix.Event)
 
 // WriteBlankOK writes a blank OK message as a reply to a HTTP request.
 func WriteBlankOK(w http.ResponseWriter) {

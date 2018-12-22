@@ -2,7 +2,6 @@ package appservice
 
 import (
 	"io/ioutil"
-
 	"regexp"
 
 	"gopkg.in/yaml.v2"
