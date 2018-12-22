@@ -6,12 +6,16 @@ github.com/mattn/go-colorable v0.0.9 h1:UVL0vNpWh04HeJXV0KLcaT7r06gOH2l4OW6ddYRU
 github.com/mattn/go-colorable v0.0.9/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
 github.com/mattn/go-isatty v0.0.4 h1:bnP0vzxcAdeI1zdubAl5PjU6zsERjGZb7raWodagDYs=
 github.com/mattn/go-isatty v0.0.4/go.mod h1:M+lRXTBqGeGNdLjl/ufCoiOlB5xdOkqRJdNxMWT7Zi4=
+github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 golang.org/x/net v0.0.0-20181220203305-927f97764cc3 h1:eH6Eip3UpmR+yM/qI9Ijluzb1bNv/cAU/n+6l8tRSis=
 golang.org/x/net v0.0.0-20181220203305-927f97764cc3/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 maunium.net/go/maulogger/v2 v2.0.0 h1:8PB95zf6e7Ddw8iOWqjrJjAjPcAI50LagA1X0Ur64os=
 maunium.net/go/maulogger/v2 v2.0.0/go.mod h1:Hbbkq3NV6jvJodByZu1mgEF3fpT7Kz9z0MjEZ3/BusI=
 maunium.net/go/mautrix v0.1.0-alpha.1 h1:s0AOe3bAuElTQeR2A12ISDFj99iaWzUqMVHSNdkoG7I=
 maunium.net/go/mautrix v0.1.0-alpha.1/go.mod h1:Rdy+cP8SrJAtJmwyFrX8Lq02Ceb3JHfPgmboanjngls=
+maunium.net/go/mautrix v0.1.0-alpha.2 h1:NsLc5tyrp5tyrKTvFSmqcLi+FISQ+FsuWC/ycL08PzI=
+maunium.net/go/mautrix v0.1.0-alpha.2/go.mod h1:C8akEpHpmmO8gQhLvmInr3HujhUXyKvCoCAzFsxHjGE=
