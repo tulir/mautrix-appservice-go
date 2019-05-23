@@ -18,6 +18,8 @@ type IntentAPI struct {
 	as        *AppService
 	Localpart string
 	UserID    string
+
+	IsCustomPuppet bool
 }
 
 func (as *AppService) NewIntentAPI(localpart string) *IntentAPI {
@@ -32,6 +34,8 @@ func (as *AppService) NewIntentAPI(localpart string) *IntentAPI {
 		as:        as,
 		Localpart: localpart,
 		UserID:    userID,
+
+		IsCustomPuppet: false,
 	}
 }
 
