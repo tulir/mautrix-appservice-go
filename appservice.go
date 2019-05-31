@@ -149,6 +149,7 @@ func (as *AppService) Intent(userID string) *IntentAPI {
 func (as *AppService) BotIntent() *IntentAPI {
 	if as.botIntent == nil {
 		as.botIntent = as.NewIntentAPI(as.Registration.SenderLocalpart)
+		as.botIntent.Logger = as.Log.Sub(as.botIntent.UserID)
 	}
 	return as.botIntent
 }
