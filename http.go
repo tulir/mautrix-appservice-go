@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"maunium.net/go/mautrix"
 )
 
 // Listen starts the HTTP server that listens for calls from the Matrix homeserver.
@@ -104,17 +105,34 @@ func (as *AppService) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	eventList := EventList{}
 	err = json.Unmarshal(body, &eventList)
 	if err != nil {
-		Error{
-			ErrorCode:  ErrInvalidJSON,
-			HTTPStatus: http.StatusBadRequest,
-			Message:    "Failed to parse body JSON.",
-		}.Write(w)
-		return
-	}
-
-	for _, event := range eventList.Events {
-		as.UpdateState(event)
-		as.Events <- event
+		var rawEventList struct{
+			Events []json.RawMessage `json:"events"`
+		}
+		err = json.Unmarshal(body, &rawEventList)
+		if err != nil {
+			Error{
+				ErrorCode:  ErrInvalidJSON,
+				HTTPStatus: http.StatusBadRequest,
+				Message:    "Failed to parse body JSON.",
+			}.Write(w)
+			return
+		}
+		for _, rawEvent := range rawEventList.Events {
+			event := &mautrix.Event{}
+			err = json.Unmarshal(rawEvent, event)
+			if err != nil {
+				as.Log.Errorln("Failed to unmarshal event:", err)
+				as.Log.Errorln("Failed event JSON:", string(rawEvent))
+				continue
+			}
+			as.UpdateState(event)
+			as.Events <- event
+		}
+	} else {
+		for _, event := range eventList.Events {
+			as.UpdateState(event)
+			as.Events <- event
+		}
 	}
 	as.lastProcessedTransaction = txnID
 	WriteBlankOK(w)
