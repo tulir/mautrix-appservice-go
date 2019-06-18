@@ -7,6 +7,8 @@
 package appservice
 
 import (
+	"encoding/json"
+
 	log "maunium.net/go/maulogger/v2"
 	"maunium.net/go/mautrix"
 )
@@ -48,6 +50,16 @@ func (ep *EventProcessor) On(evtType mautrix.EventType, handler mautrix.OnEventL
 	ep.handlers[evtType] = handlers
 }
 
+func (ep *EventProcessor) callHandler(handler mautrix.OnEventListener, event *mautrix.Event) {
+	defer func() {
+		if err := recover(); err != nil {
+			d, _ := json.Marshal(event)
+			ep.log.Errorfln("Panic in Matrix event handler: %v (event content: %s)", err, string(d))
+		}
+	}()
+	handler(event)
+}
+
 func (ep *EventProcessor) Start() {
 	for {
 		select {
@@ -59,17 +71,17 @@ func (ep *EventProcessor) Start() {
 			switch ep.ExecMode {
 			case AsyncHandlers:
 				for _, handler := range handlers {
-					go handler(evt)
+					go ep.callHandler(handler, evt)
 				}
 			case AsyncLoop:
 				go func() {
 					for _, handler := range handlers {
-						handler(evt)
+						ep.callHandler(handler, evt)
 					}
 				}()
 			case Sync:
 				for _, handler := range handlers {
-					handler(evt)
+					ep.callHandler(handler, evt)
 				}
 			}
 		case <-ep.stop:
