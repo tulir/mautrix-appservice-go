@@ -8,6 +8,7 @@ package appservice
 
 import (
 	"fmt"
+	"strings"
 
 	"maunium.net/go/mautrix"
 )
@@ -248,6 +249,9 @@ func (intent *IntentAPI) EnsureInvited(roomID, userID string) error {
 		_, err := intent.Client.InviteUser(roomID, &mautrix.ReqInviteUser{
 			UserID: userID,
 		})
+		if httpErr, ok := err.(mautrix.HTTPError); ok && strings.Contains(httpErr.RespError.Err, "is already in the room") {
+			return nil
+		}
 		return err
 	}
 	return nil

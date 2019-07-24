@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"maunium.net/go/maulogger/v2"
+
 	"maunium.net/go/mautrix"
 )
 
@@ -72,6 +73,11 @@ type AppService struct {
 	RegistrationPath string     `yaml:"registration"`
 	Host             HostConfig `yaml:"host"`
 	LogConfig        LogConfig  `yaml:"logging"`
+	Sync             struct {
+		Enabled   bool   `yaml:"enabled"`
+		FilterID  string `yaml:"filter_id"`
+		NextBatch string `yaml:"next_batch"`
+	} `yaml:"sync"`
 
 	Registration *Registration    `yaml:"-"`
 	Log          maulogger.Logger `yaml:"-"`

@@ -14,11 +14,28 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+
 	"maunium.net/go/mautrix"
 )
 
-// Listen starts the HTTP server that listens for calls from the Matrix homeserver.
 func (as *AppService) Start() {
+	if as.Sync.Enabled {
+		as.startSync()
+	} else {
+		as.startServer()
+	}
+}
+
+func (as *AppService) Stop() {
+	if as.Sync.Enabled {
+		as.stopSync()
+	} else {
+		as.stopServer()
+	}
+}
+
+// Listen starts the HTTP server that listens for calls from the Matrix homeserver.
+func (as *AppService) startServer() {
 	r := mux.NewRouter()
 	r.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
 	r.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
@@ -42,7 +59,7 @@ func (as *AppService) Start() {
 	}
 }
 
-func (as *AppService) Stop() {
+func (as *AppService) stopServer() {
 	if as.server == nil {
 		return
 	}
@@ -105,7 +122,7 @@ func (as *AppService) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	eventList := EventList{}
 	err = json.Unmarshal(body, &eventList)
 	if err != nil {
-		var rawEventList struct{
+		var rawEventList struct {
 			Events []json.RawMessage `json:"events"`
 		}
 		err = json.Unmarshal(body, &rawEventList)
