@@ -56,9 +56,11 @@ func (intent *IntentAPI) EnsureRegistered() error {
 	}
 
 	err := intent.Register()
-	httpErr, ok := err.(mautrix.HTTPError)
-	if !ok || httpErr.RespError.ErrCode != "M_USER_IN_USE" {
-		return err
+	if err != nil {
+		httpErr, ok := err.(mautrix.HTTPError)
+		if !ok || httpErr.RespError == nil || httpErr.RespError.ErrCode != "M_USER_IN_USE" {
+			return err
+		}
 	}
 	intent.as.StateStore.MarkRegistered(intent.UserID)
 	return nil
