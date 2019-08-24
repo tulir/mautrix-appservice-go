@@ -285,13 +285,15 @@ type FileFormatData struct {
 
 // GetFileFormat returns a mauLogger-compatible logger file format based on the data in the struct.
 func (lc LogConfig) GetFileFormat() maulogger.LoggerFileFormat {
-	os.MkdirAll(lc.Directory, 0700)
+	if len(lc.Directory) > 0 {
+		_ = os.MkdirAll(lc.Directory, 0700)
+	}
 	path := filepath.Join(lc.Directory, lc.FileNameFormat)
 	tpl, _ := template.New("fileformat").Parse(path)
 
 	return func(now string, i int) string {
 		var buf strings.Builder
-		tpl.Execute(&buf, FileFormatData{
+		_ = tpl.Execute(&buf, FileFormatData{
 			Date:  now,
 			Index: i,
 		})
