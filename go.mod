@@ -8,7 +8,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.2.2
 	maunium.net/go/maulogger/v2 v2.0.0
-	maunium.net/go/mautrix v0.1.0-alpha.3.0.20190622085722-6406f15cb8e3
+	maunium.net/go/mautrix v0.1.0-alpha.3.0.20190825132810-9d870654e9d2
 )
 
 replace gopkg.in/russross/blackfriday.v2 => github.com/russross/blackfriday/v2 v2.0.1

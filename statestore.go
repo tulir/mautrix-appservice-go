@@ -30,11 +30,6 @@ type StateStore interface {
 	GetPowerLevel(roomID, userID string) int
 	GetPowerLevelRequirement(roomID string, eventType mautrix.EventType) int
 	HasPowerLevel(roomID, userID string, eventType mautrix.EventType) bool
-
-	Lock()
-	Unlock()
-	RLock()
-	RUnlock()
 }
 
 func (as *AppService) UpdateState(evt *mautrix.Event) {
@@ -46,74 +41,21 @@ func (as *AppService) UpdateState(evt *mautrix.Event) {
 	}
 }
 
-type BasicStateStore struct {
-	globalLock sync.RWMutex `json:"-"`
-
-	registrationsLock sync.RWMutex                              `json:"-"`
-	Registrations     map[string]bool                           `json:"registrations"`
-	membershipsLock   sync.RWMutex                              `json:"-"`
-	Memberships       map[string]map[string]mautrix.Membership `json:"memberships"`
-	powerLevelsLock   sync.RWMutex                              `json:"-"`
-	PowerLevels       map[string]*mautrix.PowerLevels          `json:"power_levels"`
-
-	Typing     map[string]map[string]int64 `json:"-"`
-	typingLock sync.RWMutex                `json:"-"`
+type TypingStateStore struct {
+	typing     map[string]map[string]int64
+	typingLock sync.RWMutex
 }
 
-func NewBasicStateStore() StateStore {
-	return &BasicStateStore{
-		Registrations: make(map[string]bool),
-		Memberships:   make(map[string]map[string]mautrix.Membership),
-		PowerLevels:   make(map[string]*mautrix.PowerLevels),
-		Typing:        make(map[string]map[string]int64),
+func NewTypingStateStore() *TypingStateStore {
+	return &TypingStateStore{
+		typing: make(map[string]map[string]int64),
 	}
 }
 
-func (store *BasicStateStore) RLock() {
-	store.registrationsLock.RLock()
-	store.membershipsLock.RLock()
-	store.powerLevelsLock.RLock()
-	store.typingLock.RLock()
-}
-
-func (store *BasicStateStore) RUnlock() {
-	store.typingLock.RUnlock()
-	store.powerLevelsLock.RUnlock()
-	store.membershipsLock.RUnlock()
-	store.registrationsLock.RUnlock()
-}
-
-func (store *BasicStateStore) Lock() {
-	store.registrationsLock.Lock()
-	store.membershipsLock.Lock()
-	store.powerLevelsLock.Lock()
-	store.typingLock.Lock()
-}
-
-func (store *BasicStateStore) Unlock() {
-	store.typingLock.Unlock()
-	store.powerLevelsLock.Unlock()
-	store.membershipsLock.Unlock()
-	store.registrationsLock.Unlock()
-}
-
-func (store *BasicStateStore) IsRegistered(userID string) bool {
-	store.registrationsLock.RLock()
-	defer store.registrationsLock.RUnlock()
-	registered, ok := store.Registrations[userID]
-	return ok && registered
-}
-
-func (store *BasicStateStore) MarkRegistered(userID string) {
-	store.registrationsLock.Lock()
-	defer store.registrationsLock.Unlock()
-	store.Registrations[userID] = true
-}
-
-func (store *BasicStateStore) IsTyping(roomID, userID string) bool {
+func (store *TypingStateStore) IsTyping(roomID, userID string) bool {
 	store.typingLock.RLock()
 	defer store.typingLock.RUnlock()
-	roomTyping, ok := store.Typing[roomID]
+	roomTyping, ok := store.typing[roomID]
 	if !ok {
 		return false
 	}
@@ -121,10 +63,10 @@ func (store *BasicStateStore) IsTyping(roomID, userID string) bool {
 	return typingEndsAt >= time.Now().Unix()
 }
 
-func (store *BasicStateStore) SetTyping(roomID, userID string, timeout int64) {
+func (store *TypingStateStore) SetTyping(roomID, userID string, timeout int64) {
 	store.typingLock.Lock()
 	defer store.typingLock.Unlock()
-	roomTyping, ok := store.Typing[roomID]
+	roomTyping, ok := store.typing[roomID]
 	if !ok {
 		if timeout >= 0 {
 			roomTyping = map[string]int64{
@@ -140,7 +82,40 @@ func (store *BasicStateStore) SetTyping(roomID, userID string, timeout int64) {
 			delete(roomTyping, userID)
 		}
 	}
-	store.Typing[roomID] = roomTyping
+	store.typing[roomID] = roomTyping
+}
+
+type BasicStateStore struct {
+	registrationsLock sync.RWMutex                             `json:"-"`
+	Registrations     map[string]bool                          `json:"registrations"`
+	membershipsLock   sync.RWMutex                             `json:"-"`
+	Memberships       map[string]map[string]mautrix.Membership `json:"memberships"`
+	powerLevelsLock   sync.RWMutex                             `json:"-"`
+	PowerLevels       map[string]*mautrix.PowerLevels          `json:"power_levels"`
+
+	*TypingStateStore
+}
+
+func NewBasicStateStore() StateStore {
+	return &BasicStateStore{
+		Registrations:    make(map[string]bool),
+		Memberships:      make(map[string]map[string]mautrix.Membership),
+		PowerLevels:      make(map[string]*mautrix.PowerLevels),
+		TypingStateStore: NewTypingStateStore(),
+	}
+}
+
+func (store *BasicStateStore) IsRegistered(userID string) bool {
+	store.registrationsLock.RLock()
+	defer store.registrationsLock.RUnlock()
+	registered, ok := store.Registrations[userID]
+	return ok && registered
+}
+
+func (store *BasicStateStore) MarkRegistered(userID string) {
+	store.registrationsLock.Lock()
+	defer store.registrationsLock.Unlock()
+	store.Registrations[userID] = true
 }
 
 func (store *BasicStateStore) GetRoomMemberships(roomID string) map[string]mautrix.Membership {

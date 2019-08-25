@@ -33,3 +33,5 @@ maunium.net/go/mautrix v0.1.0-alpha.3.0.20190606153009-ca5d9535b6cc h1:G7Nse6r/X
 maunium.net/go/mautrix v0.1.0-alpha.3.0.20190606153009-ca5d9535b6cc/go.mod h1:O+QWJP3H7BZEzIBSrECKpnpRnEKBwaoWVEu/yZwVwxg=
 maunium.net/go/mautrix v0.1.0-alpha.3.0.20190622085722-6406f15cb8e3 h1:oVabjOi2rV7qb9IHUm/SVKjbTcLyCVGw2FCsvulDsZg=
 maunium.net/go/mautrix v0.1.0-alpha.3.0.20190622085722-6406f15cb8e3/go.mod h1:O+QWJP3H7BZEzIBSrECKpnpRnEKBwaoWVEu/yZwVwxg=
+maunium.net/go/mautrix v0.1.0-alpha.3.0.20190825132810-9d870654e9d2 h1:0iVxLLAOSBqtJqhIjW9EbblMsaSYoCJRo5mHPZnytUk=
+maunium.net/go/mautrix v0.1.0-alpha.3.0.20190825132810-9d870654e9d2/go.mod h1:O+QWJP3H7BZEzIBSrECKpnpRnEKBwaoWVEu/yZwVwxg=
