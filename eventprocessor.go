@@ -8,6 +8,7 @@ package appservice
 
 import (
 	"encoding/json"
+	"runtime/debug"
 
 	log "maunium.net/go/maulogger/v2"
 	"maunium.net/go/mautrix"
@@ -54,7 +55,7 @@ func (ep *EventProcessor) callHandler(handler mautrix.OnEventListener, event *ma
 	defer func() {
 		if err := recover(); err != nil {
 			d, _ := json.Marshal(event)
-			ep.log.Errorfln("Panic in Matrix event handler: %v (event content: %s)", err, string(d))
+			ep.log.Errorfln("Panic in Matrix event handler: %v (event content: %s):\n%s", err, string(d), string(debug.Stack()))
 		}
 	}()
 	handler(event)
