@@ -78,7 +78,7 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 	resp, err := intent.JoinRoom(roomID, "", nil)
 	if err != nil {
 		httpErr, ok := err.(mautrix.HTTPError)
-		if !ok || httpErr.RespError.ErrCode != "M_FORBIDDEN" || intent.bot == nil {
+		if !ok || httpErr.RespError == nil || httpErr.RespError.ErrCode != "M_FORBIDDEN" || intent.bot == nil {
 			return httpErr
 		}
 		_, inviteErr := intent.bot.InviteUser(roomID, &mautrix.ReqInviteUser{
