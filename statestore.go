@@ -23,7 +23,10 @@ type StateStore interface {
 	IsInRoom(roomID, userID string) bool
 	IsInvited(roomID, userID string) bool
 	IsMembership(roomID, userID string, allowedMemberships ...mautrix.Membership) bool
+	GetMember(roomID, userID string) mautrix.Member
+	TryGetMember(roomID, userID string) (mautrix.Member, bool)
 	SetMembership(roomID, userID string, membership mautrix.Membership)
+	SetMember(roomID, userID string, member mautrix.Member)
 
 	SetPowerLevels(roomID string, levels *mautrix.PowerLevels)
 	GetPowerLevels(roomID string) *mautrix.PowerLevels
@@ -35,7 +38,7 @@ type StateStore interface {
 func (as *AppService) UpdateState(evt *mautrix.Event) {
 	switch evt.Type {
 	case mautrix.StateMember:
-		as.StateStore.SetMembership(evt.RoomID, evt.GetStateKey(), evt.Content.Membership)
+		as.StateStore.SetMember(evt.RoomID, evt.GetStateKey(), evt.Content.Member)
 	case mautrix.StatePowerLevels:
 		as.StateStore.SetPowerLevels(evt.RoomID, evt.Content.GetPowerLevels())
 	}
@@ -86,12 +89,12 @@ func (store *TypingStateStore) SetTyping(roomID, userID string, timeout int64) {
 }
 
 type BasicStateStore struct {
-	registrationsLock sync.RWMutex                             `json:"-"`
-	Registrations     map[string]bool                          `json:"registrations"`
-	membershipsLock   sync.RWMutex                             `json:"-"`
-	Memberships       map[string]map[string]mautrix.Membership `json:"memberships"`
-	powerLevelsLock   sync.RWMutex                             `json:"-"`
-	PowerLevels       map[string]*mautrix.PowerLevels          `json:"power_levels"`
+	registrationsLock sync.RWMutex                         `json:"-"`
+	Registrations     map[string]bool                      `json:"registrations"`
+	membersLock       sync.RWMutex                         `json:"-"`
+	Members           map[string]map[string]mautrix.Member `json:"memberships"`
+	powerLevelsLock   sync.RWMutex                         `json:"-"`
+	PowerLevels       map[string]*mautrix.PowerLevels      `json:"power_levels"`
 
 	*TypingStateStore
 }
@@ -99,7 +102,7 @@ type BasicStateStore struct {
 func NewBasicStateStore() StateStore {
 	return &BasicStateStore{
 		Registrations:    make(map[string]bool),
-		Memberships:      make(map[string]map[string]mautrix.Membership),
+		Members:          make(map[string]map[string]mautrix.Member),
 		PowerLevels:      make(map[string]*mautrix.PowerLevels),
 		TypingStateStore: NewTypingStateStore(),
 	}
@@ -118,31 +121,40 @@ func (store *BasicStateStore) MarkRegistered(userID string) {
 	store.Registrations[userID] = true
 }
 
-func (store *BasicStateStore) GetRoomMemberships(roomID string) map[string]mautrix.Membership {
-	store.membershipsLock.RLock()
-	memberships, ok := store.Memberships[roomID]
-	store.membershipsLock.RUnlock()
+func (store *BasicStateStore) GetRoomMembers(roomID string) map[string]mautrix.Member {
+	store.membersLock.RLock()
+	members, ok := store.Members[roomID]
+	store.membersLock.RUnlock()
 	if !ok {
-		memberships = make(map[string]mautrix.Membership)
-		store.membershipsLock.Lock()
-		store.Memberships[roomID] = memberships
-		store.membershipsLock.Unlock()
+		members = make(map[string]mautrix.Member)
+		store.membersLock.Lock()
+		store.Members[roomID] = members
+		store.membersLock.Unlock()
 	}
-	return memberships
+	return members
 }
 
 func (store *BasicStateStore) GetMembership(roomID, userID string) mautrix.Membership {
-	store.membershipsLock.RLock()
-	defer store.membershipsLock.RUnlock()
-	memberships, ok := store.Memberships[roomID]
+	return store.GetMember(roomID, userID).Membership
+}
+
+func (store *BasicStateStore) GetMember(roomID, userID string) mautrix.Member {
+	member, ok := store.TryGetMember(roomID, userID)
 	if !ok {
-		return mautrix.MembershipLeave
+		member.Membership = mautrix.MembershipLeave
 	}
-	membership, ok := memberships[userID]
-	if !ok {
-		return mautrix.MembershipLeave
+	return member
+}
+
+func (store *BasicStateStore) TryGetMember(roomID, userID string) (member mautrix.Member, ok bool) {
+	store.membersLock.RLock()
+	defer store.membersLock.RUnlock()
+	members, membersOk := store.Members[roomID]
+	if !membersOk {
+		return
 	}
-	return membership
+	member, ok = members[userID]
+	return
 }
 
 func (store *BasicStateStore) IsInRoom(roomID, userID string) bool {
@@ -164,17 +176,37 @@ func (store *BasicStateStore) IsMembership(roomID, userID string, allowedMembers
 }
 
 func (store *BasicStateStore) SetMembership(roomID, userID string, membership mautrix.Membership) {
-	store.membershipsLock.Lock()
-	memberships, ok := store.Memberships[roomID]
+	store.membersLock.Lock()
+	members, ok := store.Members[roomID]
 	if !ok {
-		memberships = map[string]mautrix.Membership{
-			userID: membership,
+		members = map[string]mautrix.Member{
+			userID: {Membership: membership},
 		}
 	} else {
-		memberships[userID] = membership
+		member, ok := members[userID]
+		if !ok {
+			members[userID] = mautrix.Member{Membership: membership}
+		} else {
+			member.Membership = membership
+			members[userID] = member
+		}
 	}
-	store.Memberships[roomID] = memberships
-	store.membershipsLock.Unlock()
+	store.Members[roomID] = members
+	store.membersLock.Unlock()
+}
+
+func (store *BasicStateStore) SetMember(roomID, userID string, member mautrix.Member) {
+	store.membersLock.Lock()
+	members, ok := store.Members[roomID]
+	if !ok {
+		members = map[string]mautrix.Member{
+			userID: member,
+		}
+	} else {
+		members[userID] = member
+	}
+	store.Members[roomID] = members
+	store.membersLock.Unlock()
 }
 
 func (store *BasicStateStore) SetPowerLevels(roomID string, levels *mautrix.PowerLevels) {

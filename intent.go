@@ -131,6 +131,15 @@ func (intent *IntentAPI) StateEvent(roomID string, eventType mautrix.EventType, 
 	return intent.Client.StateEvent(roomID, eventType, stateKey, outContent)
 }
 
+func (intent *IntentAPI) Member(roomID, userID string) mautrix.Member {
+	member, ok := intent.as.StateStore.TryGetMember(roomID, userID)
+	if !ok {
+		_ = intent.StateEvent(roomID, mautrix.StateMember, userID, &member)
+		intent.as.StateStore.SetMember(roomID, userID, member)
+	}
+	return member
+}
+
 func (intent *IntentAPI) PowerLevels(roomID string) (pl *mautrix.PowerLevels, err error) {
 	pl = intent.as.StateStore.GetPowerLevels(roomID)
 	if pl == nil {
