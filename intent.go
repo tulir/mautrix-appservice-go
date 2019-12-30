@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"maunium.net/go/mautrix"
 )
 
@@ -59,7 +61,7 @@ func (intent *IntentAPI) EnsureRegistered() error {
 	if err != nil {
 		httpErr, ok := err.(mautrix.HTTPError)
 		if !ok || httpErr.RespError == nil || httpErr.RespError.ErrCode != "M_USER_IN_USE" {
-			return err
+			return errors.Wrap(err, "failed to ensure registered")
 		}
 	}
 	intent.as.StateStore.MarkRegistered(intent.UserID)
@@ -72,24 +74,24 @@ func (intent *IntentAPI) EnsureJoined(roomID string) error {
 	}
 
 	if err := intent.EnsureRegistered(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to ensure joined")
 	}
 
 	resp, err := intent.JoinRoom(roomID, "", nil)
 	if err != nil {
 		httpErr, ok := err.(mautrix.HTTPError)
 		if !ok || httpErr.RespError == nil || httpErr.RespError.ErrCode != "M_FORBIDDEN" || intent.bot == nil {
-			return httpErr
+			return errors.Wrap(err, "failed to ensure joined")
 		}
 		_, inviteErr := intent.bot.InviteUser(roomID, &mautrix.ReqInviteUser{
 			UserID: intent.UserID,
 		})
 		if inviteErr != nil {
-			return err
+			return errors.Wrap(err, "failed to ensure joined")
 		}
 		resp, err = intent.JoinRoom(roomID, "", nil)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to ensure joined")
 		}
 	}
 	intent.as.StateStore.SetMembership(resp.RoomID, intent.UserID, "join")
