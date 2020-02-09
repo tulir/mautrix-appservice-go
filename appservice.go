@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
 	"maunium.net/go/maulogger/v2"
@@ -34,6 +35,7 @@ func Create() *AppService {
 		clients:    make(map[string]*mautrix.Client),
 		intents:    make(map[string]*IntentAPI),
 		StateStore: NewBasicStateStore(),
+		Router:     mux.NewRouter(),
 	}
 }
 
@@ -87,6 +89,7 @@ type AppService struct {
 	QueryHandler             QueryHandler        `yaml:"-"`
 	StateStore               StateStore          `yaml:"-"`
 
+	Router    *mux.Router `yaml:"-"`
 	server    *http.Server
 	botClient *mautrix.Client
 	botIntent *IntentAPI

@@ -36,15 +36,14 @@ func (as *AppService) Stop() {
 
 // Listen starts the HTTP server that listens for calls from the Matrix homeserver.
 func (as *AppService) startServer() {
-	r := mux.NewRouter()
-	r.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
-	r.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
-	r.HandleFunc("/users/{userID}", as.GetUser).Methods(http.MethodGet)
+	as.Router.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
+	as.Router.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
+	as.Router.HandleFunc("/users/{userID}", as.GetUser).Methods(http.MethodGet)
 
 	var err error
 	as.server = &http.Server{
 		Addr:    as.Host.Address(),
-		Handler: r,
+		Handler: as.Router,
 	}
 	as.Log.Infoln("Listening on", as.Host.Address())
 	if len(as.Host.TLSCert) == 0 || len(as.Host.TLSKey) == 0 {
