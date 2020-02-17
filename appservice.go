@@ -46,7 +46,7 @@ func Load(path string) (*AppService, error) {
 		return nil, readErr
 	}
 
-	var config = &AppService{}
+	var config = Create()
 	yaml.Unmarshal(data, config)
 	return config, nil
 }
