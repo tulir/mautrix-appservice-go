@@ -9,6 +9,7 @@ package appservice
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime/debug"
 	"time"
 
@@ -17,6 +18,17 @@ import (
 
 type Syncer struct {
 	*AppService
+}
+
+func parseEvent(roomID string, data json.RawMessage) *mautrix.Event {
+	event := &mautrix.Event{}
+	err := json.Unmarshal(data, event)
+	if err != nil {
+		// TODO add separate handler for these
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to unmarshal event: %v\n%s\n", err, string(data))
+		return nil
+	}
+	return event
 }
 
 func (as *Syncer) OnFailedSync(res *mautrix.RespSync, err error) (time.Duration, error) {
@@ -35,25 +47,32 @@ func (as *Syncer) ProcessResponse(resp *mautrix.RespSync, since string) (err err
 	}()
 
 	for roomID, roomData := range resp.Rooms.Join {
-		for _, evt := range roomData.State.Events {
-			evt.RoomID = roomID
-			as.UpdateState(evt)
-			as.Events <- evt
+		for _, data := range roomData.State.Events {
+			evt := parseEvent(roomID, data)
+			if evt != nil {
+				as.UpdateState(evt)
+				as.Events <- evt
+			}
 		}
-		for _, evt := range roomData.Timeline.Events {
-			evt.RoomID = roomID
-			as.Events <- evt
+		for _, data := range roomData.Timeline.Events {
+			evt := parseEvent(roomID, data)
+			if evt != nil {
+				as.Events <- evt
+			}
 		}
 	}
 	for roomID, roomData := range resp.Rooms.Invite {
-		for _, evt := range roomData.State.Events {
-			evt.RoomID = roomID
-			as.UpdateState(evt)
-			as.Events <- evt
+		for _, data := range roomData.State.Events {
+			evt := parseEvent(roomID, data)
+			if evt != nil {
+				as.UpdateState(evt)
+				as.Events <- evt
+			}
 		}
 	}
 	for roomID, roomData := range resp.Rooms.Leave {
-		for _, evt := range roomData.Timeline.Events {
+		for _, data := range roomData.Timeline.Events {
+			evt := parseEvent(roomID, data)
 			if evt.StateKey != nil {
 				evt.RoomID = roomID
 				as.UpdateState(evt)
