@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Tulir Asokan
+// Copyright (c) 2020 Tulir Asokan
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,52 +10,53 @@ import (
 	"sync"
 	"time"
 
-	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 type StateStore interface {
-	IsRegistered(userID string) bool
-	MarkRegistered(userID string)
+	IsRegistered(userID id.UserID) bool
+	MarkRegistered(userID id.UserID)
 
-	IsTyping(roomID, userID string) bool
-	SetTyping(roomID, userID string, timeout int64)
+	IsTyping(roomID id.RoomID, userID id.UserID) bool
+	SetTyping(roomID id.RoomID, userID id.UserID, timeout int64)
 
-	IsInRoom(roomID, userID string) bool
-	IsInvited(roomID, userID string) bool
-	IsMembership(roomID, userID string, allowedMemberships ...mautrix.Membership) bool
-	GetMember(roomID, userID string) mautrix.Member
-	TryGetMember(roomID, userID string) (mautrix.Member, bool)
-	SetMembership(roomID, userID string, membership mautrix.Membership)
-	SetMember(roomID, userID string, member mautrix.Member)
+	IsInRoom(roomID id.RoomID, userID id.UserID) bool
+	IsInvited(roomID id.RoomID, userID id.UserID) bool
+	IsMembership(roomID id.RoomID, userID id.UserID, allowedMemberships ...event.Membership) bool
+	GetMember(roomID id.RoomID, userID id.UserID) *event.MemberEventContent
+	TryGetMember(roomID id.RoomID, userID id.UserID) (*event.MemberEventContent, bool)
+	SetMembership(roomID id.RoomID, userID id.UserID, membership event.Membership)
+	SetMember(roomID id.RoomID, userID id.UserID, member *event.MemberEventContent)
 
-	SetPowerLevels(roomID string, levels *mautrix.PowerLevels)
-	GetPowerLevels(roomID string) *mautrix.PowerLevels
-	GetPowerLevel(roomID, userID string) int
-	GetPowerLevelRequirement(roomID string, eventType mautrix.EventType) int
-	HasPowerLevel(roomID, userID string, eventType mautrix.EventType) bool
+	SetPowerLevels(roomID id.RoomID, levels *event.PowerLevelsEventContent)
+	GetPowerLevels(roomID id.RoomID) *event.PowerLevelsEventContent
+	GetPowerLevel(roomID id.RoomID, userID id.UserID) int
+	GetPowerLevelRequirement(roomID id.RoomID, eventType event.Type) int
+	HasPowerLevel(roomID id.RoomID, userID id.UserID, eventType event.Type) bool
 }
 
-func (as *AppService) UpdateState(evt *mautrix.Event) {
-	switch evt.Type {
-	case mautrix.StateMember:
-		as.StateStore.SetMember(evt.RoomID, evt.GetStateKey(), evt.Content.Member)
-	case mautrix.StatePowerLevels:
-		as.StateStore.SetPowerLevels(evt.RoomID, evt.Content.GetPowerLevels())
+func (as *AppService) UpdateState(evt *event.Event) {
+	switch content := evt.Content.Parsed.(type) {
+	case *event.MemberEventContent:
+		as.StateStore.SetMember(evt.RoomID, id.UserID(evt.GetStateKey()), content)
+	case *event.PowerLevelsEventContent:
+		as.StateStore.SetPowerLevels(evt.RoomID, content)
 	}
 }
 
 type TypingStateStore struct {
-	typing     map[string]map[string]int64
+	typing     map[id.RoomID]map[id.UserID]int64
 	typingLock sync.RWMutex
 }
 
 func NewTypingStateStore() *TypingStateStore {
 	return &TypingStateStore{
-		typing: make(map[string]map[string]int64),
+		typing: make(map[id.RoomID]map[id.UserID]int64),
 	}
 }
 
-func (store *TypingStateStore) IsTyping(roomID, userID string) bool {
+func (store *TypingStateStore) IsTyping(roomID id.RoomID, userID id.UserID) bool {
 	store.typingLock.RLock()
 	defer store.typingLock.RUnlock()
 	roomTyping, ok := store.typing[roomID]
@@ -66,17 +67,17 @@ func (store *TypingStateStore) IsTyping(roomID, userID string) bool {
 	return typingEndsAt >= time.Now().Unix()
 }
 
-func (store *TypingStateStore) SetTyping(roomID, userID string, timeout int64) {
+func (store *TypingStateStore) SetTyping(roomID id.RoomID, userID id.UserID, timeout int64) {
 	store.typingLock.Lock()
 	defer store.typingLock.Unlock()
 	roomTyping, ok := store.typing[roomID]
 	if !ok {
 		if timeout >= 0 {
-			roomTyping = map[string]int64{
+			roomTyping = map[id.UserID]int64{
 				userID: time.Now().Unix() + timeout,
 			}
 		} else {
-			roomTyping = make(map[string]int64)
+			return
 		}
 	} else {
 		if timeout >= 0 {
@@ -89,44 +90,44 @@ func (store *TypingStateStore) SetTyping(roomID, userID string, timeout int64) {
 }
 
 type BasicStateStore struct {
-	registrationsLock sync.RWMutex                         `json:"-"`
-	Registrations     map[string]bool                      `json:"registrations"`
-	membersLock       sync.RWMutex                         `json:"-"`
-	Members           map[string]map[string]mautrix.Member `json:"memberships"`
-	powerLevelsLock   sync.RWMutex                         `json:"-"`
-	PowerLevels       map[string]*mautrix.PowerLevels      `json:"power_levels"`
+	registrationsLock sync.RWMutex                                          `json:"-"`
+	Registrations     map[id.UserID]bool                                    `json:"registrations"`
+	membersLock       sync.RWMutex                                          `json:"-"`
+	Members           map[id.RoomID]map[id.UserID]*event.MemberEventContent `json:"memberships"`
+	powerLevelsLock   sync.RWMutex                                          `json:"-"`
+	PowerLevels       map[id.RoomID]*event.PowerLevelsEventContent          `json:"power_levels"`
 
 	*TypingStateStore
 }
 
 func NewBasicStateStore() StateStore {
 	return &BasicStateStore{
-		Registrations:    make(map[string]bool),
-		Members:          make(map[string]map[string]mautrix.Member),
-		PowerLevels:      make(map[string]*mautrix.PowerLevels),
+		Registrations:    make(map[id.UserID]bool),
+		Members:          make(map[id.RoomID]map[id.UserID]*event.MemberEventContent),
+		PowerLevels:      make(map[id.RoomID]*event.PowerLevelsEventContent),
 		TypingStateStore: NewTypingStateStore(),
 	}
 }
 
-func (store *BasicStateStore) IsRegistered(userID string) bool {
+func (store *BasicStateStore) IsRegistered(userID id.UserID) bool {
 	store.registrationsLock.RLock()
 	defer store.registrationsLock.RUnlock()
 	registered, ok := store.Registrations[userID]
 	return ok && registered
 }
 
-func (store *BasicStateStore) MarkRegistered(userID string) {
+func (store *BasicStateStore) MarkRegistered(userID id.UserID) {
 	store.registrationsLock.Lock()
 	defer store.registrationsLock.Unlock()
 	store.Registrations[userID] = true
 }
 
-func (store *BasicStateStore) GetRoomMembers(roomID string) map[string]mautrix.Member {
+func (store *BasicStateStore) GetRoomMembers(roomID id.RoomID) map[id.UserID]*event.MemberEventContent {
 	store.membersLock.RLock()
 	members, ok := store.Members[roomID]
 	store.membersLock.RUnlock()
 	if !ok {
-		members = make(map[string]mautrix.Member)
+		members = make(map[id.UserID]*event.MemberEventContent)
 		store.membersLock.Lock()
 		store.Members[roomID] = members
 		store.membersLock.Unlock()
@@ -134,19 +135,19 @@ func (store *BasicStateStore) GetRoomMembers(roomID string) map[string]mautrix.M
 	return members
 }
 
-func (store *BasicStateStore) GetMembership(roomID, userID string) mautrix.Membership {
+func (store *BasicStateStore) GetMembership(roomID id.RoomID, userID id.UserID) event.Membership {
 	return store.GetMember(roomID, userID).Membership
 }
 
-func (store *BasicStateStore) GetMember(roomID, userID string) mautrix.Member {
+func (store *BasicStateStore) GetMember(roomID id.RoomID, userID id.UserID) *event.MemberEventContent {
 	member, ok := store.TryGetMember(roomID, userID)
 	if !ok {
-		member.Membership = mautrix.MembershipLeave
+		member = &event.MemberEventContent{Membership: event.MembershipLeave}
 	}
 	return member
 }
 
-func (store *BasicStateStore) TryGetMember(roomID, userID string) (member mautrix.Member, ok bool) {
+func (store *BasicStateStore) TryGetMember(roomID id.RoomID, userID id.UserID) (member *event.MemberEventContent, ok bool) {
 	store.membersLock.RLock()
 	defer store.membersLock.RUnlock()
 	members, membersOk := store.Members[roomID]
@@ -157,15 +158,15 @@ func (store *BasicStateStore) TryGetMember(roomID, userID string) (member mautri
 	return
 }
 
-func (store *BasicStateStore) IsInRoom(roomID, userID string) bool {
+func (store *BasicStateStore) IsInRoom(roomID id.RoomID, userID id.UserID) bool {
 	return store.IsMembership(roomID, userID, "join")
 }
 
-func (store *BasicStateStore) IsInvited(roomID, userID string) bool {
+func (store *BasicStateStore) IsInvited(roomID id.RoomID, userID id.UserID) bool {
 	return store.IsMembership(roomID, userID, "join", "invite")
 }
 
-func (store *BasicStateStore) IsMembership(roomID, userID string, allowedMemberships ...mautrix.Membership) bool {
+func (store *BasicStateStore) IsMembership(roomID id.RoomID, userID id.UserID, allowedMemberships ...event.Membership) bool {
 	membership := store.GetMembership(roomID, userID)
 	for _, allowedMembership := range allowedMemberships {
 		if allowedMembership == membership {
@@ -175,17 +176,17 @@ func (store *BasicStateStore) IsMembership(roomID, userID string, allowedMembers
 	return false
 }
 
-func (store *BasicStateStore) SetMembership(roomID, userID string, membership mautrix.Membership) {
+func (store *BasicStateStore) SetMembership(roomID id.RoomID, userID id.UserID, membership event.Membership) {
 	store.membersLock.Lock()
 	members, ok := store.Members[roomID]
 	if !ok {
-		members = map[string]mautrix.Member{
+		members = map[id.UserID]*event.MemberEventContent{
 			userID: {Membership: membership},
 		}
 	} else {
 		member, ok := members[userID]
 		if !ok {
-			members[userID] = mautrix.Member{Membership: membership}
+			members[userID] = &event.MemberEventContent{Membership: membership}
 		} else {
 			member.Membership = membership
 			members[userID] = member
@@ -195,11 +196,11 @@ func (store *BasicStateStore) SetMembership(roomID, userID string, membership ma
 	store.membersLock.Unlock()
 }
 
-func (store *BasicStateStore) SetMember(roomID, userID string, member mautrix.Member) {
+func (store *BasicStateStore) SetMember(roomID id.RoomID, userID id.UserID, member *event.MemberEventContent) {
 	store.membersLock.Lock()
 	members, ok := store.Members[roomID]
 	if !ok {
-		members = map[string]mautrix.Member{
+		members = map[id.UserID]*event.MemberEventContent{
 			userID: member,
 		}
 	} else {
@@ -209,27 +210,27 @@ func (store *BasicStateStore) SetMember(roomID, userID string, member mautrix.Me
 	store.membersLock.Unlock()
 }
 
-func (store *BasicStateStore) SetPowerLevels(roomID string, levels *mautrix.PowerLevels) {
+func (store *BasicStateStore) SetPowerLevels(roomID id.RoomID, levels *event.PowerLevelsEventContent) {
 	store.powerLevelsLock.Lock()
 	store.PowerLevels[roomID] = levels
 	store.powerLevelsLock.Unlock()
 }
 
-func (store *BasicStateStore) GetPowerLevels(roomID string) (levels *mautrix.PowerLevels) {
+func (store *BasicStateStore) GetPowerLevels(roomID id.RoomID) (levels *event.PowerLevelsEventContent) {
 	store.powerLevelsLock.RLock()
 	levels, _ = store.PowerLevels[roomID]
 	store.powerLevelsLock.RUnlock()
 	return
 }
 
-func (store *BasicStateStore) GetPowerLevel(roomID, userID string) int {
+func (store *BasicStateStore) GetPowerLevel(roomID id.RoomID, userID id.UserID) int {
 	return store.GetPowerLevels(roomID).GetUserLevel(userID)
 }
 
-func (store *BasicStateStore) GetPowerLevelRequirement(roomID string, eventType mautrix.EventType) int {
+func (store *BasicStateStore) GetPowerLevelRequirement(roomID id.RoomID, eventType event.Type) int {
 	return store.GetPowerLevels(roomID).GetEventLevel(eventType)
 }
 
-func (store *BasicStateStore) HasPowerLevel(roomID, userID string, eventType mautrix.EventType) bool {
+func (store *BasicStateStore) HasPowerLevel(roomID id.RoomID, userID id.UserID, eventType event.Type) bool {
 	return store.GetPowerLevel(roomID, userID) >= store.GetPowerLevelRequirement(roomID, eventType)
 }

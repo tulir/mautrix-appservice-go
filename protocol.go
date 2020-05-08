@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Tulir Asokan
+// Copyright (c) 2020 Tulir Asokan
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,21 +10,21 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
 )
 
 // EventList contains a list of events.
 type EventList struct {
-	Events []*mautrix.Event `json:"events"`
+	Events []*event.Event `json:"events"`
 }
 
 // EventListener is a function that receives events.
-type EventListener func(event *mautrix.Event)
+type EventListener func(evt *event.Event)
 
 // WriteBlankOK writes a blank OK message as a reply to a HTTP request.
 func WriteBlankOK(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("{}"))
+	_, _ = w.Write([]byte("{}"))
 }
 
 // Respond responds to a HTTP request with a JSON object.
@@ -33,7 +33,7 @@ func Respond(w http.ResponseWriter, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write([]byte(dataStr))
+	_, err = w.Write(dataStr)
 	return err
 }
 
@@ -46,7 +46,7 @@ type Error struct {
 
 func (err Error) Write(w http.ResponseWriter) {
 	w.WriteHeader(err.HTTPStatus)
-	Respond(w, &err)
+	_ = Respond(w, &err)
 }
 
 // ErrorCode is the machine-readable code in an Error.

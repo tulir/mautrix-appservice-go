@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Tulir Asokan
+// Copyright (c) 2020 Tulir Asokan
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,27 +15,12 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
-func (as *AppService) Start() {
-	if as.Sync.Enabled {
-		as.startSync()
-	} else {
-		as.startServer()
-	}
-}
-
-func (as *AppService) Stop() {
-	if as.Sync.Enabled {
-		as.stopSync()
-	} else {
-		as.stopServer()
-	}
-}
-
 // Listen starts the HTTP server that listens for calls from the Matrix homeserver.
-func (as *AppService) startServer() {
+func (as *AppService) Start() {
 	as.Router.HandleFunc("/transactions/{txnID}", as.PutTransaction).Methods(http.MethodPut)
 	as.Router.HandleFunc("/rooms/{roomAlias}", as.GetRoom).Methods(http.MethodGet)
 	as.Router.HandleFunc("/users/{userID}", as.GetUser).Methods(http.MethodGet)
@@ -61,13 +46,13 @@ func (as *AppService) startServer() {
 	}
 }
 
-func (as *AppService) stopServer() {
+func (as *AppService) Stop() {
 	if as.server == nil {
 		return
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	as.server.Shutdown(ctx)
+	_ = as.server.Shutdown(ctx)
 	as.server = nil
 }
 
@@ -124,37 +109,29 @@ func (as *AppService) PutTransaction(w http.ResponseWriter, r *http.Request) {
 	eventList := EventList{}
 	err = json.Unmarshal(body, &eventList)
 	if err != nil {
-		var rawEventList struct {
-			Events []json.RawMessage `json:"events"`
-		}
-		err = json.Unmarshal(body, &rawEventList)
-		if err != nil {
-			Error{
-				ErrorCode:  ErrInvalidJSON,
-				HTTPStatus: http.StatusBadRequest,
-				Message:    "Failed to parse body JSON.",
-			}.Write(w)
-			return
-		}
-		for _, rawEvent := range rawEventList.Events {
-			event := &mautrix.Event{}
-			err = json.Unmarshal(rawEvent, event)
-			if err != nil {
-				as.Log.Errorln("Failed to unmarshal event:", err)
-				as.Log.Errorln("Failed event JSON:", string(rawEvent))
-				continue
-			}
-			as.UpdateState(event)
-			as.Events <- event
-		}
+		as.Log.Warnfln("Failed to parse JSON of transaction %s: %v", txnID, err)
+		Error{
+			ErrorCode:  ErrInvalidJSON,
+			HTTPStatus: http.StatusBadRequest,
+			Message:    "Failed to parse body JSON.",
+		}.Write(w)
 	} else {
-		for _, event := range eventList.Events {
-			as.UpdateState(event)
-			as.Events <- event
+		for _, evt := range eventList.Events {
+			if evt.StateKey != nil {
+				evt.Type.Class = event.StateEventType
+			} else {
+				evt.Type.Class = event.MessageEventType
+			}
+			err := evt.Content.ParseRaw(evt.Type)
+			if err != nil {
+				as.Log.Debugfln("Failed to parse content of %s: %v", evt.ID, err)
+			}
+			as.UpdateState(evt)
+			as.Events <- evt
 		}
+		WriteBlankOK(w)
 	}
 	as.lastProcessedTransaction = txnID
-	WriteBlankOK(w)
 }
 
 // GetRoom handles a /rooms GET call from the homeserver.
@@ -183,7 +160,7 @@ func (as *AppService) GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	userID := vars["userID"]
+	userID := id.UserID(vars["userID"])
 	ok := as.QueryHandler.QueryUser(userID)
 	if ok {
 		WriteBlankOK(w)

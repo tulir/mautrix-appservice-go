@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Tulir Asokan
+// Copyright (c) 2020 Tulir Asokan
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -23,6 +22,8 @@ import (
 	"maunium.net/go/maulogger/v2"
 
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 // EventChannelSize is the size for the Events channel in Appservice instances.
@@ -32,8 +33,8 @@ var EventChannelSize = 64
 func Create() *AppService {
 	return &AppService{
 		LogConfig:  CreateLogConfig(),
-		clients:    make(map[string]*mautrix.Client),
-		intents:    make(map[string]*IntentAPI),
+		clients:    make(map[id.UserID]*mautrix.Client),
+		intents:    make(map[id.UserID]*IntentAPI),
 		StateStore: NewBasicStateStore(),
 		Router:     mux.NewRouter(),
 	}
@@ -46,15 +47,14 @@ func Load(path string) (*AppService, error) {
 		return nil, readErr
 	}
 
-	var config = Create()
-	yaml.Unmarshal(data, config)
-	return config, nil
+	config := Create()
+	return config, yaml.Unmarshal(data, config)
 }
 
 // QueryHandler handles room alias and user ID queries from the homeserver.
 type QueryHandler interface {
 	QueryAlias(alias string) bool
-	QueryUser(userID string) bool
+	QueryUser(userID id.UserID) bool
 }
 
 type QueryHandlerStub struct{}
@@ -63,7 +63,7 @@ func (qh *QueryHandlerStub) QueryAlias(alias string) bool {
 	return false
 }
 
-func (qh *QueryHandlerStub) QueryUser(userID string) bool {
+func (qh *QueryHandlerStub) QueryUser(userID id.UserID) bool {
 	return false
 }
 
@@ -85,16 +85,17 @@ type AppService struct {
 	Log          maulogger.Logger `yaml:"-"`
 
 	lastProcessedTransaction string
-	Events                   chan *mautrix.Event `yaml:"-"`
-	QueryHandler             QueryHandler        `yaml:"-"`
-	StateStore               StateStore          `yaml:"-"`
+
+	Events       chan *event.Event `yaml:"-"`
+	QueryHandler QueryHandler      `yaml:"-"`
+	StateStore   StateStore        `yaml:"-"`
 
 	Router    *mux.Router `yaml:"-"`
 	server    *http.Server
 	botClient *mautrix.Client
 	botIntent *IntentAPI
-	clients   map[string]*mautrix.Client
-	intents   map[string]*IntentAPI
+	clients   map[id.UserID]*mautrix.Client
+	intents   map[id.UserID]*IntentAPI
 }
 
 // HostConfig contains info about how to host the appservice.
@@ -128,25 +129,15 @@ func (as *AppService) YAML() (string, error) {
 	return string(data), nil
 }
 
-func (as *AppService) BotMXID() string {
-	return fmt.Sprintf("@%s:%s", as.Registration.SenderLocalpart, as.HomeserverDomain)
+func (as *AppService) BotMXID() id.UserID {
+	return id.NewUserID(as.Registration.SenderLocalpart, as.HomeserverDomain)
 }
 
-var MatrixUserIDRegex = regexp.MustCompile("^@([^:]+):(.+)$")
-
-func ParseUserID(mxid string) (string, string) {
-	match := MatrixUserIDRegex.FindStringSubmatch(mxid)
-	if match != nil && len(match) == 3 {
-		return match[1], match[2]
-	}
-	return "", ""
-}
-
-func (as *AppService) Intent(userID string) *IntentAPI {
+func (as *AppService) Intent(userID id.UserID) *IntentAPI {
 	intent, ok := as.intents[userID]
 	if !ok {
-		localpart, homeserver := ParseUserID(userID)
-		if len(localpart) == 0 || homeserver != as.HomeserverDomain {
+		localpart, homeserver, err := userID.Parse()
+		if err != nil || len(localpart) == 0 || homeserver != as.HomeserverDomain {
 			return nil
 		}
 		intent = as.NewIntentAPI(localpart)
@@ -158,12 +149,12 @@ func (as *AppService) Intent(userID string) *IntentAPI {
 func (as *AppService) BotIntent() *IntentAPI {
 	if as.botIntent == nil {
 		as.botIntent = as.NewIntentAPI(as.Registration.SenderLocalpart)
-		as.botIntent.Logger = as.Log.Sub(as.botIntent.UserID)
+		as.botIntent.Logger = as.Log.Sub(string(as.botIntent.UserID))
 	}
 	return as.botIntent
 }
 
-func (as *AppService) Client(userID string) *mautrix.Client {
+func (as *AppService) Client(userID id.UserID) *mautrix.Client {
 	client, ok := as.clients[userID]
 	if !ok {
 		var err error
@@ -175,7 +166,7 @@ func (as *AppService) Client(userID string) *mautrix.Client {
 		client.Syncer = nil
 		client.Store = nil
 		client.AppServiceUserID = userID
-		client.Logger = as.Log.Sub(userID)
+		client.Logger = as.Log.Sub(string(userID))
 		as.clients[userID] = client
 	}
 	return client
@@ -198,7 +189,7 @@ func (as *AppService) BotClient() *mautrix.Client {
 
 // Init initializes the logger and loads the registration of this appservice.
 func (as *AppService) Init() (bool, error) {
-	as.Events = make(chan *mautrix.Event, EventChannelSize)
+	as.Events = make(chan *event.Event, EventChannelSize)
 	as.QueryHandler = &QueryHandlerStub{}
 
 	as.Log = maulogger.Create()
