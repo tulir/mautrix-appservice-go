@@ -62,30 +62,34 @@ func (ep *EventProcessor) callHandler(handler mautrix.OnEventListener, evt *even
 	handler(evt)
 }
 
+func (ep *EventProcessor) Dispatch(evt *event.Event) {
+	handlers, ok := ep.handlers[evt.Type]
+	if !ok {
+		return
+	}
+	switch ep.ExecMode {
+	case AsyncHandlers:
+		for _, handler := range handlers {
+			go ep.callHandler(handler, evt)
+		}
+	case AsyncLoop:
+		go func() {
+			for _, handler := range handlers {
+				ep.callHandler(handler, evt)
+			}
+		}()
+	case Sync:
+		for _, handler := range handlers {
+			ep.callHandler(handler, evt)
+		}
+	}
+}
+
 func (ep *EventProcessor) Start() {
 	for {
 		select {
 		case evt := <-ep.as.Events:
-			handlers, ok := ep.handlers[evt.Type]
-			if !ok {
-				continue
-			}
-			switch ep.ExecMode {
-			case AsyncHandlers:
-				for _, handler := range handlers {
-					go ep.callHandler(handler, evt)
-				}
-			case AsyncLoop:
-				go func() {
-					for _, handler := range handlers {
-						ep.callHandler(handler, evt)
-					}
-				}()
-			case Sync:
-				for _, handler := range handlers {
-					ep.callHandler(handler, evt)
-				}
-			}
+			ep.Dispatch(evt)
 		case <-ep.stop:
 			return
 		}

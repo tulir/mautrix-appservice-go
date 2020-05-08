@@ -8,5 +8,5 @@ require (
 	github.com/pkg/errors v0.9.1
 	gopkg.in/yaml.v2 v2.2.8
 	maunium.net/go/maulogger/v2 v2.1.1
-	maunium.net/go/mautrix v0.3.6
+	maunium.net/go/mautrix v0.3.7
 )
